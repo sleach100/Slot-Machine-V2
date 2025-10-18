@@ -171,8 +171,7 @@ void PolyrhythmVizComponent::timerCallback()
             slot.polygonPath.clear();
         }
 
-        const double slotPhase = std::fmod(masterPhase * (double)slot.sides, 1.0);
-        slot.beadPhase = slotPhase < 0.0 ? slotPhase + 1.0 : slotPhase;
+        slot.beadPhase = juce::jlimit(0.0, 1.0, masterPhase);
         slot.beadAngle = slot.beadPhase * juce::MathConstants<double>::twoPi - juce::MathConstants<double>::halfPi;
 
         const uint32_t hits = processor.getSlotHitCounter(i);
@@ -180,10 +179,11 @@ void PolyrhythmVizComponent::timerCallback()
         {
             slot.lastHitCounter = hits;
             slot.flash = 1.0f;
-            slot.flashVertex = slot.sides > 0
-                ? (int)juce::jlimit(0, slot.sides - 1,
-                    (int)std::floor(slot.beadPhase * (double)slot.sides + 0.5))
+            const int sides = juce::jmax(1, slot.sides);
+            const int corner = sides > 0
+                ? (int)std::floor(masterPhase * (double)sides + 0.5) % sides
                 : -1;
+            slot.flashVertex = corner;
         }
         else
         {
