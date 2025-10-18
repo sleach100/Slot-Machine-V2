@@ -119,11 +119,16 @@ void PolyrhythmVizComponent::timerCallback()
     if (auto* timingParam = apvts.getRawParameterValue("optTimingMode"))
         timingMode = juce::jlimit(0, 1, (int)std::round(timingParam->load()));
 
+    bool preferEdgeWalk = true;
+    if (auto* edgeParam = apvts.getRawParameterValue("optVisualizerEdgeWalk"))
+        preferEdgeWalk = edgeParam->load() >= 0.5f;
+
     activeCount = 0;
 
     for (int i = 0; i < kNumSlots; ++i)
     {
         auto& slot = slotVisuals[(size_t)i];
+        slot.edgeWalk = preferEdgeWalk;
         const bool mute = [this, i]()
         {
             if (auto* muteParam = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Mute"))
@@ -245,7 +250,29 @@ void PolyrhythmVizComponent::updateSlotGeometry(int slotIndex, juce::Point<float
         slot.polygonPath.closeSubPath();
     }
 
-    slot.beadPos = centre + juce::Point<float>(std::cos((float)slot.beadAngle), std::sin((float)slot.beadAngle)) * radius;
+    const bool canEdgeWalk = slot.edgeWalk && slot.vertices.size() >= 3;
+
+    if (canEdgeWalk)
+    {
+        const int sides = (int)slot.vertices.size();
+        const double u = juce::jlimit(0.0, 1.0, slot.beadPhase);
+        const double segF = u * (double)sides;
+        const double segIndex = std::floor(segF);
+        const int i0 = ((int)segIndex % sides + sides) % sides;
+        const int i1 = (i0 + 1) % sides;
+        const float w = (float)(segF - segIndex);
+
+        const juce::Point<float> p0 = slot.vertices[(size_t)i0];
+        const juce::Point<float> p1 = slot.vertices[(size_t)i1];
+        const juce::Point<float> beadPos = p0 + (p1 - p0) * w;
+
+        slot.beadPos = beadPos;
+        slot.beadAngle = std::atan2(beadPos.y - centre.y, beadPos.x - centre.x);
+    }
+    else
+    {
+        slot.beadPos = centre + juce::Point<float>(std::cos((float)slot.beadAngle), std::sin((float)slot.beadAngle)) * radius;
+    }
 }
 
 void PolyrhythmVizComponent::approximateRational(double value, int maxDenominator, int& num, int& den)

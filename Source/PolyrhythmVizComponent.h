@@ -40,6 +40,7 @@ private:
         uint32_t lastHitCounter = 0;
         juce::Colour colour;
         juce::Point<float> beadPos{};
+        bool edgeWalk = true;
     };
 
     static constexpr int kNumSlots = SlotMachineAudioProcessor::kNumSlots;
