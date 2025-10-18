@@ -824,7 +824,7 @@ void SlotMachineAudioProcessorEditor::SlotUI::FileButton::updateDragHighlight(bo
 
 // ===== Standalone persistence for Options =====
 static const juce::StringArray kOptionParamIds{
-    "optShowMasterBar", "optShowSlotBars", "optShowVisualizer",
+    "optShowMasterBar", "optShowSlotBars", "optShowVisualizer", "optVisualizerEdgeWalk",
     "optSampleRate", "optTimingMode",
     "optSlotScale",
     "optGlowColor", "optGlowAlpha", "optGlowWidth",
@@ -1023,6 +1023,17 @@ public:
         showVisualizer.setButtonText("Show Polyrhythm Visualizer window");
         showVisualizer.addListener(this);
 
+        addAndMakeVisible(visualizerModeLabel);
+        visualizerModeLabel.setText("Visualizer Path", juce::dontSendNotification);
+        visualizerModeLabel.setJustificationType(juce::Justification::centredLeft);
+        visualizerModeLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+
+        addAndMakeVisible(visualizerModeCombo);
+        visualizerModeCombo.setJustificationType(juce::Justification::centredLeft);
+        visualizerModeCombo.addItem("Edge Walk (perimeter)", 1);
+        visualizerModeCombo.addItem("Orbit (circular)", 2);
+        visualizerModeCombo.onChange = [this]() { handleVisualizerModeSelection(); };
+
         // sample rate
         sampleRateLabel.setText("Export Sample Rate", juce::dontSendNotification);
         sampleRateLabel.setColour(juce::Label::textColourId, juce::Colours::white);
@@ -1127,7 +1138,10 @@ public:
 
         toggleArea.removeFromTop(8);
         auto secondRow = toggleArea.removeFromTop(28);
-        showVisualizer.setBounds(secondRow);
+        showVisualizer.setBounds(secondRow.removeFromLeft(getWidth() / 2 - 16));
+        secondRow.removeFromLeft(12);
+        visualizerModeLabel.setBounds(secondRow.removeFromLeft(150));
+        visualizerModeCombo.setBounds(secondRow.removeFromLeft(200).reduced(0, 4));
 
         auto sampleRateRow = a.removeFromTop(48);
         sampleRateLabel.setBounds(sampleRateRow.removeFromLeft(getWidth() / 2 - 16));
@@ -1183,6 +1197,8 @@ private:
     APVTS& apvts;
 
     juce::ToggleButton showMasterBar, showSlotBars, showVisualizer;
+    juce::Label visualizerModeLabel;
+    juce::ComboBox visualizerModeCombo;
 
     juce::Label sampleRateLabel;
     juce::ComboBox sampleRateCombo;
@@ -1217,6 +1233,7 @@ private:
     std::array<int, 2>   timingModeValues{ { 0, 1 } };
     bool blockSampleRateUpdate = false;
     bool blockTimingModeUpdate = false;
+    bool blockVisualizerModeUpdate = false;
     std::array<float, 6> slotScaleValues{ { 0.75f, 0.8f, 0.85f, 0.9f, 0.95f, 1.0f } };
     bool blockSlotScaleUpdate = false;
 
@@ -1259,6 +1276,11 @@ private:
         showMasterBar.setToggleState(Opt::getBool(apvts, "optShowMasterBar", true), juce::dontSendNotification);
         showSlotBars.setToggleState(Opt::getBool(apvts, "optShowSlotBars", true), juce::dontSendNotification);
         showVisualizer.setToggleState(Opt::getBool(apvts, "optShowVisualizer", false), juce::dontSendNotification);
+
+        const bool edgeWalk = Opt::getBool(apvts, "optVisualizerEdgeWalk", true);
+        blockVisualizerModeUpdate = true;
+        visualizerModeCombo.setSelectedId(edgeWalk ? 1 : 2, juce::dontSendNotification);
+        blockVisualizerModeUpdate = false;
 
         const int currentSampleRate = Opt::getInt(apvts, "optSampleRate", sampleRateValues.front());
         int sampleRateId = 1;
@@ -1360,6 +1382,16 @@ private:
         if (s == &pulseWidth) setFloatParam("optPulseWidth", (float)pulseWidth.getValue());
     }
 
+    void handleVisualizerModeSelection()
+    {
+        if (blockVisualizerModeUpdate)
+            return;
+
+        const int id = visualizerModeCombo.getSelectedId();
+        const bool edgeWalk = (id <= 0 || id == 1);
+        setBoolParam("optVisualizerEdgeWalk", edgeWalk);
+    }
+
     void handleSampleRateSelection()
     {
         if (blockSampleRateUpdate)
@@ -1417,6 +1449,7 @@ private:
         setBoolParam("optShowMasterBar", true);
         setBoolParam("optShowSlotBars", true);
         setBoolParam("optShowVisualizer", false);
+        setBoolParam("optVisualizerEdgeWalk", true);
         setIntParam("optSampleRate", kDefaultSampleRate);
         setIntParam("optTimingMode", kDefaultTimingMode);
         setFloatParam("optSlotScale", kDefaultSlotScale);

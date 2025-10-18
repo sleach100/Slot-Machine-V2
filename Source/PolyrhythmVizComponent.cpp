@@ -119,11 +119,16 @@ void PolyrhythmVizComponent::timerCallback()
     if (auto* timingParam = apvts.getRawParameterValue("optTimingMode"))
         timingMode = juce::jlimit(0, 1, (int)std::round(timingParam->load()));
 
+    bool preferEdgeWalk = true;
+    if (auto* edgeParam = apvts.getRawParameterValue("optVisualizerEdgeWalk"))
+        preferEdgeWalk = edgeParam->load() >= 0.5f;
+
     activeCount = 0;
 
     for (int i = 0; i < kNumSlots; ++i)
     {
         auto& slot = slotVisuals[(size_t)i];
+        slot.edgeWalk = preferEdgeWalk;
         const bool mute = [this, i]()
         {
             if (auto* muteParam = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Mute"))
