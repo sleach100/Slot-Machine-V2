@@ -104,6 +104,7 @@ public:
     uint32_t getSlotHitCounter(int index) const;
     double   getSlotPhase(int index) const;
     double getMasterPhase() const;
+    double getBeatPhase01() const noexcept;
     bool exportAudioCycles(const juce::File& file, int cyclesToExport, juce::String& errorMessage);
 
     // Pattern management

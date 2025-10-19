@@ -4006,13 +4006,13 @@ void SlotMachineAudioProcessorEditor::timerCallback()
     if (isRunning)
         animateStartButton(glowColour, pulseColour);
 
-    // 0..1 over full polyrhythmic cycle
-    const float p = juce::jlimit(0.0f, 1.0f, (float)processor.getMasterPhase());
+    const float cycleP = juce::jlimit(0.0f, 1.0f, (float)processor.getMasterPhase());
+    const float beatP  = juce::jlimit(0.0f, 1.0f, (float)processor.getBeatPhase01());
 
     // Detect wrap (phase jumped backwards a bit)
-    const bool wrapped = (p + 0.02f) < lastPhase; // small hysteresis
+    const bool wrapped = (cycleP + 0.02f) < lastPhase; // small hysteresis
     if (wrapped)
-        cycleFlash = 1.0f;                        // start flash
+        cycleFlash = 1.0f;                              // start flash
 
     if (patternSwitchPending && (!isRunning || wrapped))
     {
@@ -4026,8 +4026,8 @@ void SlotMachineAudioProcessorEditor::timerCallback()
     // Decay flash envelope @ ~60 Hz
     cycleFlash = juce::jmax(0.0f, cycleFlash * 0.88f - 0.01f);
 
-    lastPhase = p;
-    masterPhase = p; // used by paint() for the master bar
+    lastPhase   = cycleP;
+    masterPhase = beatP; // used by paint() for the master bar
 
     // ---- per-slot UI polling ----
     const int timingMode = Opt::getInt(apvts, "optTimingMode", 0);

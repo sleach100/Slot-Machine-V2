@@ -1097,6 +1097,12 @@ double SlotMachineAudioProcessor::getSlotPhase(int index) const
     return slots[(size_t)index].phase;
 }
 
+double SlotMachineAudioProcessor::getBeatPhase01() const noexcept
+{
+    // 0..1 progress within the current BPM beat
+    return std::fmod(masterBeatsAccum, 1.0);
+}
+
 double SlotMachineAudioProcessor::getMasterPhase() const
 {
     // Averages slot phases that have samples; returns 0 if none
