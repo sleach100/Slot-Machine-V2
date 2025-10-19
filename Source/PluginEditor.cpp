@@ -3420,8 +3420,7 @@ void SlotMachineAudioProcessorEditor::beginMidiExportWithCycles(int cyclesReques
     }
     else
     {
-        for (const auto& sdef : active)
-            cycleBeats = MidiExport::ilcm(cycleBeats, juce::jmax(1, sdef.count));
+        cycleBeats = SlotMachineAudioProcessor::kCountModeBaseBeats;
     }
 
     if (cycleBeats <= 0 || cycleBeats > 512)
