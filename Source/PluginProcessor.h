@@ -26,6 +26,7 @@ public:
 
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override
     {
+        juce::ignoreUnused(layouts);
 #if ! JucePlugin_IsMidiEffect
 #if ! JucePlugin_IsSynth
         if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()

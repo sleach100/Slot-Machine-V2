@@ -4,7 +4,7 @@
 
 namespace
 {
-    static constexpr juce::Colour kHighlightColour = juce::Colours::lightblue;
+    constexpr auto kHighlightColour = juce::Colours::lightblue;
 }
 
 BeatsQuickPickGrid::BeatsQuickPickGrid(Options opts,
@@ -17,80 +17,53 @@ BeatsQuickPickGrid::BeatsQuickPickGrid(Options opts,
 
     if (options.showExpandToggle)
     {
-        expandToggle = std::make_unique<juce::TextButton>(expanded ? "Show 1–32" : "Show 33–64");
+        const auto* toggleText = expanded ? "Show 1–32" : "Show 33–64";
+        expandToggle = std::make_unique<juce::TextButton>(toggleText);
         expandToggle->onClick = [this]()
         {
             expanded = !expanded;
+            expandToggle->setButtonText(expanded ? "Show 1–32" : "Show 33–64");
             rebuildForRange(expanded ? 64 : 32);
         };
         addAndMakeVisible(*expandToggle);
     }
-
-    updateSizeForContent();
 }
 
 void BeatsQuickPickGrid::buildButtons()
 {
+    for (auto* button : buttons)
+        removeChildComponent(button);
+
     buttons.clear();
 
-    for (int v = options.minBeat; v <= options.maxBeat; ++v)
+    for (int value = options.minBeat; value <= options.maxBeat; ++value)
     {
-        auto* btn = new juce::TextButton(juce::String(v));
-        btn->setClickingTogglesState(false);
-        btn->addListener(this);
-        btn->setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
-        btn->setColour(juce::TextButton::buttonOnColourId, kHighlightColour);
-        btn->setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        auto* button = new juce::TextButton(juce::String(value));
+        if (value == current)
+            button->setColour(juce::TextButton::buttonColourId, kHighlightColour);
 
-        if (v == current)
-            btn->setColour(juce::TextButton::buttonColourId, kHighlightColour.withAlpha(0.6f));
-
-        addAndMakeVisible(btn);
-        buttons.add(btn);
+        button->addListener(this);
+        addAndMakeVisible(button);
+        buttons.add(button);
     }
+
+    resized();
 }
 
 void BeatsQuickPickGrid::rebuildForRange(int newMax)
 {
     options.maxBeat = newMax;
     expanded = newMax > 32;
-
-    for (auto* b : buttons)
-        removeChildComponent(b);
-
     buildButtons();
-    updateToggleForExpansion();
-    updateSizeForContent();
     repaint();
-}
-
-void BeatsQuickPickGrid::updateToggleForExpansion()
-{
-    if (expandToggle)
-        expandToggle->setButtonText(expanded ? "Show 1–32" : "Show 33–64");
-}
-
-void BeatsQuickPickGrid::updateSizeForContent()
-{
-    const int totalButtons = options.maxBeat - options.minBeat + 1;
-    const int cols = juce::jmax(1, options.columns);
-    const int rows = juce::jmax(1, (totalButtons + cols - 1) / cols);
-    const int gap = options.gap;
-    const int width = cols * (options.buttonW + gap) + gap;
-
-    int height = gap + rows * (options.buttonH + gap);
-    if (expandToggle)
-        height += options.buttonH + gap * 2;
-
-    setSize(width, height);
 }
 
 void BeatsQuickPickGrid::resized()
 {
-    const int gap = options.gap;
-    const int bw  = options.buttonW;
-    const int bh  = options.buttonH;
-    const int cols = options.columns;
+    const int gap   = options.gap;
+    const int bw    = options.buttonW;
+    const int bh    = options.buttonH;
+    const int cols  = options.columns;
 
     int x = gap;
     int y = gap;
@@ -99,9 +72,7 @@ void BeatsQuickPickGrid::resized()
     for (int i = 0; i < buttons.size(); ++i)
     {
         if (auto* button = buttons[i])
-        {
             button->setBounds(x, y, bw, bh);
-        }
 
         x += bw + gap;
         if (++col >= cols)
@@ -117,18 +88,16 @@ void BeatsQuickPickGrid::resized()
         expandToggle->setBounds(gap, y + gap, cols * (bw + gap) - gap, bh);
         y += bh + gap * 2;
     }
+
+    setSize(cols * (bw + gap) + gap, y + gap);
 }
 
 void BeatsQuickPickGrid::buttonClicked(juce::Button* b)
 {
-    if (b == expandToggle.get())
-        return;
-
     const int value = b->getButtonText().getIntValue();
-
     if (pickCallback)
         pickCallback(value);
 
-    if (auto* p = findParentComponentOfClass<juce::CallOutBox>())
-        p->dismiss();
+    if (auto* callout = findParentComponentOfClass<juce::CallOutBox>())
+        callout->dismiss();
 }

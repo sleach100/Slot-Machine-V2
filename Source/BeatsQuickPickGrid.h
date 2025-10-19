@@ -1,8 +1,8 @@
 #pragma once
 
+#include <juce_gui_basics/juce_gui_basics.h>
 #include <functional>
 #include <memory>
-#include <juce_gui_basics/juce_gui_basics.h>
 
 class BeatsQuickPickGrid : public juce::Component,
                            private juce::Button::Listener
@@ -25,18 +25,14 @@ public:
 
     void resized() override;
 
-    bool isExpanded() const noexcept { return expanded; }
-
 private:
     void buildButtons();
-    void buttonClicked(juce::Button* b) override;
     void rebuildForRange(int newMax);
-    void updateToggleForExpansion();
-    void updateSizeForContent();
+    void buttonClicked(juce::Button* b) override;
 
     Options options;
     std::function<void(int)> pickCallback;
-    juce::OwnedArray<juce::Button> buttons;
+    juce::OwnedArray<juce::TextButton> buttons;
     std::unique_ptr<juce::TextButton> expandToggle;
     int current = 1;
     bool expanded = false;

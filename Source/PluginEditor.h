@@ -15,7 +15,6 @@ class SlotMachineAudioProcessorEditor
     : public juce::AudioProcessorEditor
     , private juce::Button::Listener
     , private juce::Timer
-    , public juce::MouseListener
 {
 public:
 
