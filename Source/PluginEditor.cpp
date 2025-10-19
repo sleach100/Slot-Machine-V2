@@ -1311,6 +1311,9 @@ private:
         visualizerModeCombo.setSelectedId(edgeWalk ? 1 : 2, juce::dontSendNotification);
         blockVisualizerModeUpdate = false;
 
+        const int timingModeValue = Opt::getInt(apvts, "optTimingMode", timingModeValues.front());
+        applyVisualizerAvailabilityForTimingMode(timingModeValue);
+
         const int currentSampleRate = Opt::getInt(apvts, "optSampleRate", sampleRateValues.front());
         int sampleRateId = 1;
         for (int i = 0; i < (int)sampleRateValues.size(); ++i)
@@ -1326,11 +1329,10 @@ private:
         sampleRateCombo.setSelectedId(sampleRateId, juce::dontSendNotification);
         blockSampleRateUpdate = false;
 
-        const int timingMode = Opt::getInt(apvts, "optTimingMode", timingModeValues.front());
         int timingModeId = 1;
         for (int i = 0; i < (int)timingModeValues.size(); ++i)
         {
-            if (timingModeValues[(size_t)i] == timingMode)
+            if (timingModeValues[(size_t)i] == timingModeValue)
             {
                 timingModeId = i + 1;
                 break;
@@ -1461,6 +1463,7 @@ private:
 
         const int value = timingModeValues[(size_t)(id - 1)];
         setIntParam("optTimingMode", value);
+        applyVisualizerAvailabilityForTimingMode(value);
     }
 
     void resetToDefaultOptions()
@@ -1518,6 +1521,26 @@ private:
         {
             fp->beginChangeGesture(); *fp = v; fp->endChangeGesture();
             saveOptionsToDisk(apvts);
+        }
+    }
+
+    void applyVisualizerAvailabilityForTimingMode(int timingMode)
+    {
+        const bool rateMode = (timingMode == 0);
+        const bool visualizerEnabled = !rateMode;
+
+        showVisualizer.setEnabled(visualizerEnabled);
+        showVisualizer.setAlpha(visualizerEnabled ? 1.0f : 0.35f);
+
+        visualizerModeLabel.setEnabled(visualizerEnabled);
+        visualizerModeLabel.setAlpha(visualizerEnabled ? 1.0f : 0.35f);
+        visualizerModeCombo.setEnabled(visualizerEnabled);
+        visualizerModeCombo.setAlpha(visualizerEnabled ? 1.0f : 0.35f);
+
+        if (!visualizerEnabled && showVisualizer.getToggleState())
+        {
+            showVisualizer.setToggleState(false, juce::dontSendNotification);
+            setBoolParam("optShowVisualizer", false);
         }
     }
 };
@@ -1802,6 +1825,10 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
     }
 
     refreshSlotTimingModeUI(initialTimingMode);
+
+    const bool initialRateMode = (initialTimingMode == 0);
+    btnVisualizer.setEnabled(!initialRateMode);
+    btnVisualizer.setAlpha(initialRateMode ? 0.35f : 1.0f);
     apvts.addParameterListener("optTimingMode", this);
 
     initialisePatterns();
@@ -4074,8 +4101,19 @@ void SlotMachineAudioProcessorEditor::timerCallback()
     // ---- per-slot UI polling ----
     const int timingMode = Opt::getInt(apvts, "optTimingMode", 0);
 
+    if (timingMode == 0 && lastShowVisualizer)
+    {
+        closeVisualizerWindow();
+        lastShowVisualizer = false;
+        setShowVisualizerParam(false);
+    }
+
     if (timingMode != lastTimingMode)
     {
+        const bool rateMode = (timingMode == 0);
+        btnVisualizer.setEnabled(!rateMode);
+        btnVisualizer.setAlpha(rateMode ? 0.35f : 1.0f);
+
         refreshSlotTimingModeUI(timingMode);
 
         for (int i = 0; i < kNumSlots; ++i)
