@@ -943,7 +943,7 @@ public:
     {
         setUsingNativeTitleBar(true);
         setResizable(true, true);
-        setAlwaysOnTop(false);
+        setAlwaysOnTop(true);
     }
 
     void closeButtonPressed() override
@@ -3615,6 +3615,7 @@ void SlotMachineAudioProcessorEditor::openVisualizerWindow()
 {
     if (vizWindow)
     {
+        vizWindow->setAlwaysOnTop(true);
         if (auto* peer = vizWindow->getPeer())
             peer->toFront(true);
         else
@@ -3628,6 +3629,7 @@ void SlotMachineAudioProcessorEditor::openVisualizerWindow()
     auto window = std::make_unique<VisualizerWindow>(*this);
     window->setContentOwned(componentPtr, true);
     window->centreWithSize(640, 640);
+    window->setAlwaysOnTop(true);
     window->setVisible(true);
     window->toFront(true);
 
