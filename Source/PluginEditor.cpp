@@ -1312,7 +1312,7 @@ private:
         blockVisualizerModeUpdate = false;
 
         const int timingMode = Opt::getInt(apvts, "optTimingMode", timingModeValues.front());
-        updateVisualizerAvailabilityForTimingMode(timingMode);
+        applyVisualizerAvailabilityForTimingMode(timingMode);
 
         const int currentSampleRate = Opt::getInt(apvts, "optSampleRate", sampleRateValues.front());
         int sampleRateId = 1;
@@ -1464,7 +1464,7 @@ private:
 
         const int value = timingModeValues[(size_t)(id - 1)];
         setIntParam("optTimingMode", value);
-        updateVisualizerAvailabilityForTimingMode(value);
+        applyVisualizerAvailabilityForTimingMode(value);
     }
 
     void resetToDefaultOptions()
@@ -1525,7 +1525,7 @@ private:
         }
     }
 
-    void updateVisualizerAvailabilityForTimingMode(int timingMode)
+    void applyVisualizerAvailabilityForTimingMode(int timingMode)
     {
         const bool rateMode = (timingMode == 0);
         const bool visualizerEnabled = !rateMode;
@@ -1826,6 +1826,10 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
     }
 
     refreshSlotTimingModeUI(initialTimingMode);
+
+    const bool initialRateMode = (initialTimingMode == 0);
+    btnVisualizer.setEnabled(!initialRateMode);
+    btnVisualizer.setAlpha(initialRateMode ? 0.35f : 1.0f);
     apvts.addParameterListener("optTimingMode", this);
 
     initialisePatterns();
@@ -4107,6 +4111,10 @@ void SlotMachineAudioProcessorEditor::timerCallback()
 
     if (timingMode != lastTimingMode)
     {
+        const bool rateMode = (timingMode == 0);
+        btnVisualizer.setEnabled(!rateMode);
+        btnVisualizer.setAlpha(rateMode ? 0.35f : 1.0f);
+
         refreshSlotTimingModeUI(timingMode);
 
         for (int i = 0; i < kNumSlots; ++i)
@@ -4213,10 +4221,6 @@ void SlotMachineAudioProcessorEditor::refreshSlotTimingModeUI()
 
 void SlotMachineAudioProcessorEditor::refreshSlotTimingModeUI(int timingMode)
 {
-    const bool rateMode = (timingMode == 0);
-    btnVisualizer.setEnabled(!rateMode);
-    btnVisualizer.setAlpha(rateMode ? 0.35f : 1.0f);
-
     for (auto& slot : slots)
         if (slot)
             slot->updateTimingModeVisibility(timingMode);
