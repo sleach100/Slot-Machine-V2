@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 class BeatsQuickPickGrid : public juce::Component,

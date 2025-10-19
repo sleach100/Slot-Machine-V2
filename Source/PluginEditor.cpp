@@ -1830,6 +1830,8 @@ void SlotMachineAudioProcessorEditor::parentHierarchyChanged()
 
 void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 {
+    juce::AudioProcessorEditor::mouseDown(e);
+
     auto* eventComponent = e.eventComponent;
     if (eventComponent != nullptr)
     {
@@ -1860,8 +1862,10 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
                         };
 
                         auto grid = std::make_unique<BeatsQuickPickGrid>(opts, std::move(pickHandler), currentValue);
+                        slot->beatsQuickPickExpanded = grid->isExpanded();
 
-                        juce::CallOutBox::launchAsynchronously(std::move(grid), e.getScreenPosition(), nullptr);
+                        auto calloutBounds = juce::Rectangle<int>(e.getScreenX(), e.getScreenY(), 1, 1);
+                        juce::CallOutBox::launchAsynchronously(std::unique_ptr<juce::Component>(grid.release()), calloutBounds, nullptr);
                         e.consume();
                         return;
                     }
@@ -1912,6 +1916,8 @@ void SlotMachineAudioProcessorEditor::mouseWheelMove(const juce::MouseEvent& e, 
             }
         }
     }
+
+    juce::AudioProcessorEditor::mouseWheelMove(e, wheel);
 }
 
 void SlotMachineAudioProcessorEditor::updateStandaloneWindowTitle()
