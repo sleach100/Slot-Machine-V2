@@ -15,7 +15,6 @@ class SlotMachineAudioProcessorEditor
     : public juce::AudioProcessorEditor
     , private juce::Button::Listener
     , private juce::Timer
-    , public juce::MouseListener
 {
 public:
 
@@ -28,6 +27,8 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void parentHierarchyChanged() override;
+    void mouseDown(const juce::MouseEvent& e) override;
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
     // Standalone helper used to ensure the UI starts in a clean state.
     void resetUiToDefaultStateForStandalone();
@@ -245,9 +246,11 @@ private:
 
         bool syncingFromRate = false;
         bool syncingFromCount = false;
+        bool beatsQuickPickExpanded = false;
     };
 
     static constexpr int kNumSlots = SlotMachineAudioProcessor::kNumSlots;
+    static constexpr int kMaxBeatsPerSlot = 64;
     std::array<std::unique_ptr<SlotUI>, kNumSlots> slots;
 
     PatternTabs patternTabs;
@@ -289,12 +292,12 @@ private:
     {
         const float clampedRate = juce::jlimit(0.0625f, 4.0f, rateValue);
         const int scaled = juce::jmax(1, juce::roundToInt(clampedRate * 4.0f));
-        return juce::jlimit(1, 32, scaled);
+        return juce::jlimit(1, kMaxBeatsPerSlot, scaled);
     }
 
     static float convertCountToRate(int countValue)
     {
-        const int clampedCount = juce::jlimit(1, 32, countValue);
+        const int clampedCount = juce::jlimit(1, kMaxBeatsPerSlot, countValue);
         const float rate = (float)clampedCount / 4.0f;
         return juce::jlimit(0.0625f, 4.0f, rate);
     }

@@ -424,7 +424,7 @@ APVTS::ParameterLayout SlotMachineAudioProcessor::createParameterLayout()
 
         layout.add(std::make_unique<juce::AudioParameterInt>(
             base + "Count", "Slot " + juce::String(i) + " Beats/Cycle",
-            1, 32, 4));
+            1, 64, 4));
 
         layout.add(std::make_unique<juce::AudioParameterFloat>(
             base + "Gain", "Slot " + juce::String(i) + " Gain",
@@ -572,7 +572,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
             // --- BeatsPerCycle mode ---
             int count = 4;
             if (auto* countParam = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Count"))
-                count = juce::jlimit(1, 32, (int)std::round(countParam->load()));
+                count = juce::jlimit(1, 64, (int)std::round(countParam->load()));
 
             cycleBeatsCount = ilcm(cycleBeatsCount, count);
             hasCycleCount = true;
@@ -617,7 +617,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         const float rate = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Rate");
         int count = 4;
         if (auto* countParam = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Count"))
-            count = juce::jlimit(1, 32, (int)std::round(countParam->load()));
+            count = juce::jlimit(1, 64, (int)std::round(countParam->load()));
         const float gainPercent = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Gain");
         const float gain = gainPercent * 0.01f;
         const float pan = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Pan");
@@ -1131,7 +1131,7 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
         const float rateParam = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Rate");
         int count = 4;
         if (auto* countParam = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Count"))
-            count = juce::jlimit(1, 32, (int)std::round(countParam->load()));
+            count = juce::jlimit(1, 64, (int)std::round(countParam->load()));
         const float gainPercent = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Gain");
         const float pan = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Pan");
         const float decayUi = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Decay");

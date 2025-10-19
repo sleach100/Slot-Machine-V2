@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "PolyrhythmVizComponent.h"
+#include "BeatsQuickPickGrid.h"
 
 #include <memory>
 #include <cmath>
@@ -50,7 +51,9 @@ namespace
         return tryGetSlotTitleLabel(group, 0);
     }
 
-	constexpr auto kStandaloneWindowTitle = "";// This sets the text in the title bar of the standalone app
+    constexpr int kBeatsQuickPickDefaultMax = 32;
+
+    constexpr auto kStandaloneWindowTitle = "";// This sets the text in the title bar of the standalone app
     constexpr int kMasterControlsYOffset = 70;
     constexpr int kMasterLabelExtraYOffset = 35;
     constexpr float kBannerScaleMultiplier = 2.24f;
@@ -1721,7 +1724,7 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         addAndMakeVisible(ui->gain);
         addAndMakeVisible(ui->decay);
 
-        setupKnob(ui->count, 1.0, 32.0, 1.0, "Beats/Cycle (Count)");
+        setupKnob(ui->count, 1.0, (double)SlotMachineAudioProcessorEditor::kMaxBeatsPerSlot, 1.0, "Beats/Cycle (Count)");
         ui->count.setNumDecimalPlacesToDisplay(0);
         ui->count.setTooltip("Number of beats in one shared cycle.");
         setupKnob(ui->rate, 0.0625, 4.00, 0.0001, "Rate", 4);
@@ -1736,8 +1739,13 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         ui->count.onValueChange = [this, slotIndex]()
         {
             if (auto* slot = slots[(size_t)slotIndex].get())
+            {
+                slot->beatsQuickPickExpanded = juce::roundToInt(slot->count.getValue()) > kBeatsQuickPickDefaultMax;
                 handleSlotCountChanged(slotIndex, *slot);
+            }
         };
+
+        ui->count.addMouseListener(this, true);
 
         ui->muteA = std::make_unique<APVTS::ButtonAttachment>(apvts, "slot" + juce::String(idx) + "_Mute", ui->muteBtn);
         ui->soloA = std::make_unique<APVTS::ButtonAttachment>(apvts, "slot" + juce::String(idx) + "_Solo", ui->soloBtn);
@@ -1814,6 +1822,94 @@ void SlotMachineAudioProcessorEditor::parentHierarchyChanged()
 {
     juce::AudioProcessorEditor::parentHierarchyChanged();
     updateStandaloneWindowTitle();
+}
+
+void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
+{
+    juce::AudioProcessorEditor::mouseDown(e);
+
+    auto* eventComponent = e.eventComponent;
+    if (eventComponent == nullptr)
+        return;
+
+    for (int i = 0; i < kNumSlots; ++i)
+    {
+        if (auto* slot = slots[(size_t)i].get())
+        {
+            auto& beatsSlider = slot->count;
+            const bool hitBeatsControl = (eventComponent == &beatsSlider) || beatsSlider.isParentOf(eventComponent);
+
+            if (hitBeatsControl && e.mods.isPopupMenu())
+            {
+                const int currentValue = juce::roundToInt(beatsSlider.getValue());
+
+                BeatsQuickPickGrid::Options opts;
+                opts.maxBeat = slot->beatsQuickPickExpanded ? kMaxBeatsPerSlot : kBeatsQuickPickDefaultMax;
+                if (currentValue > kBeatsQuickPickDefaultMax)
+                    opts.maxBeat = kMaxBeatsPerSlot;
+
+                slot->beatsQuickPickExpanded = opts.maxBeat > kBeatsQuickPickDefaultMax;
+
+                auto pickHandler = [slot](int picked)
+                {
+                    slot->beatsQuickPickExpanded = picked > kBeatsQuickPickDefaultMax;
+                    slot->count.setValue(picked, juce::sendNotificationSync);
+                };
+
+                auto grid = std::make_unique<BeatsQuickPickGrid>(opts, std::move(pickHandler), currentValue);
+
+                const auto screenPos = e.getScreenPosition().roundToInt();
+                const auto calloutBounds = juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1);
+                juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
+                return;
+            }
+        }
+    }
+}
+
+void SlotMachineAudioProcessorEditor::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    auto* eventComponent = e.eventComponent;
+    if (eventComponent == nullptr)
+    {
+        juce::AudioProcessorEditor::mouseWheelMove(e, wheel);
+        return;
+    }
+
+    for (int i = 0; i < kNumSlots; ++i)
+    {
+        if (auto* slot = slots[(size_t)i].get())
+        {
+            auto& beatsSlider = slot->count;
+            const bool hitBeatsControl = (eventComponent == &beatsSlider) || beatsSlider.isParentOf(eventComponent);
+
+            if (hitBeatsControl)
+            {
+                if (wheel.deltaY == 0.0f)
+                    return;
+
+                const bool accelerated = e.mods.isCtrlDown() || e.mods.isCommandDown();
+                const int step = accelerated ? 4 : 1;
+
+                int value = juce::roundToInt(beatsSlider.getValue());
+                if (wheel.deltaY > 0.0f)
+                    value += step;
+                else if (wheel.deltaY < 0.0f)
+                    value -= step;
+
+                const int limit = slot->beatsQuickPickExpanded ? kMaxBeatsPerSlot : kBeatsQuickPickDefaultMax;
+                value = juce::jlimit(1, limit, value);
+
+                if (value != juce::roundToInt(beatsSlider.getValue()))
+                    beatsSlider.setValue(value, juce::sendNotificationSync);
+
+                slot->beatsQuickPickExpanded = value > kBeatsQuickPickDefaultMax;
+                return;
+            }
+        }
+    }
+
+    juce::AudioProcessorEditor::mouseWheelMove(e, wheel);
 }
 
 void SlotMachineAudioProcessorEditor::updateStandaloneWindowTitle()
@@ -3271,7 +3367,7 @@ void SlotMachineAudioProcessorEditor::beginMidiExportWithCycles(int cyclesReques
         const float rate = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Rate");
         int count = 4;
         if (auto* countParam = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Count"))
-            count = juce::jlimit(1, 32, (int)std::round(countParam->load()));
+            count = juce::jlimit(1, kMaxBeatsPerSlot, (int)std::round(countParam->load()));
         const float gainPercent = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Gain");
         const float midiChoice = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_MidiChannel");
 

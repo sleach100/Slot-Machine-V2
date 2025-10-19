@@ -13,6 +13,10 @@
       <FILE id="OsSVUx" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="PisV1i" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="rX1k5u" name="BeatsQuickPickGrid.cpp" compile="1" resource="0"
+            file="Source/BeatsQuickPickGrid.cpp"/>
+      <FILE id="vE7sLq" name="BeatsQuickPickGrid.h" compile="0" resource="0"
+            file="Source/BeatsQuickPickGrid.h"/>
       <FILE id="kK6jo0" name="PolyrhythmVizComponent.cpp" compile="1" resource="0"
             file="Source/PolyrhythmVizComponent.cpp"/>
       <FILE id="dCSe0b" name="PolyrhythmVizComponent.h" compile="0" resource="0"
