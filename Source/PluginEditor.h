@@ -15,6 +15,7 @@ class SlotMachineAudioProcessorEditor
     : public juce::AudioProcessorEditor
     , private juce::Button::Listener
     , private juce::Timer
+    , private juce::AudioProcessorValueTreeState::Listener
 {
 public:
 
@@ -233,6 +234,8 @@ private:
 
         juce::Slider count, rate, gain, decay;
 
+        void updateTimingModeVisibility(int timingMode);
+
         std::unique_ptr<APVTS::ButtonAttachment> muteA, soloA;
         std::unique_ptr<APVTS::SliderAttachment> countA, rateA, gainA, decayA;
         std::unique_ptr<APVTS::ComboBoxAttachment> midiChannelA;
@@ -247,6 +250,9 @@ private:
         bool syncingFromRate = false;
         bool syncingFromCount = false;
         bool beatsQuickPickExpanded = false;
+
+        bool showRateLabel = true;
+        bool showCountLabel = false;
     };
 
     static constexpr int kNumSlots = SlotMachineAudioProcessor::kNumSlots;
@@ -326,6 +332,9 @@ private:
     void refreshSizeForSlotScale();
     int scaleDimension(int base) const;
     int scaleDimensionWithMax(int base, float maxScale) const;
+    void refreshSlotTimingModeUI();
+    void refreshSlotTimingModeUI(int timingMode);
+    void parameterChanged(const juce::String& parameterID, float newValue) override;
 
     // Refs
     SlotMachineAudioProcessor& processor;

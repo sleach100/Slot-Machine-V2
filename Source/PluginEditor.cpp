@@ -825,6 +825,32 @@ void SlotMachineAudioProcessorEditor::SlotUI::FileButton::updateDragHighlight(bo
     repaint();
 }
 
+void SlotMachineAudioProcessorEditor::SlotUI::updateTimingModeVisibility(int timingMode)
+{
+    const bool showRate = (timingMode == 0);
+    const bool showCount = !showRate;
+
+    const auto configureSlider = [](juce::Slider& slider, bool shouldShow)
+    {
+        slider.setVisible(shouldShow);
+        slider.setEnabled(shouldShow);
+        slider.setInterceptsMouseClicks(shouldShow, shouldShow);
+        slider.setAlpha(shouldShow ? 1.0f : 0.35f);
+        slider.setWantsKeyboardFocus(shouldShow);
+
+        if (shouldShow)
+            slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 54, 18);
+        else
+            slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    };
+
+    configureSlider(rate, showRate);
+    configureSlider(count, showCount);
+
+    showRateLabel = showRate;
+    showCountLabel = showCount;
+}
+
 // ===== Standalone persistence for Options =====
 static const juce::StringArray kOptionParamIds{
     "optShowMasterBar", "optShowSlotBars", "optShowVisualizer", "optVisualizerEdgeWalk",
@@ -1545,6 +1571,8 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
     logoImage = juce::ImageCache::getFromMemory(BinaryData::SM5_png, BinaryData::SM5_pngSize);
 
     slotScale = juce::jlimit(0.75f, 1.0f, Opt::getFloat(apvts, "optSlotScale", 0.8f));
+    const int initialTimingMode = Opt::getInt(apvts, "optTimingMode", 0);
+    lastTimingMode = initialTimingMode;
 
     constexpr int slotColumns = 4;
     const int slotRows = juce::jmax(1, (kNumSlots + slotColumns - 1) / slotColumns);
@@ -1773,6 +1801,9 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
             initialiseSlotTimingPair(i, *slotPtr);
     }
 
+    refreshSlotTimingModeUI(initialTimingMode);
+    apvts.addParameterListener("optTimingMode", this);
+
     initialisePatterns();
 
     startTimerHz(60);
@@ -1806,16 +1837,18 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         applySlotScale(startupSlotScale);
     }
 
+    refreshSlotTimingModeUI();
+
     lastShowVisualizer = Opt::getBool(apvts, "optShowVisualizer", false);
     if (lastShowVisualizer)
         openVisualizerWindow();
 
-    lastTimingMode = Opt::getInt(apvts, "optTimingMode", 0);
 }
 
 SlotMachineAudioProcessorEditor::~SlotMachineAudioProcessorEditor()
 {
     closeVisualizerWindow();
+    apvts.removeParameterListener("optTimingMode", this);
 }
 
 void SlotMachineAudioProcessorEditor::parentHierarchyChanged()
@@ -2058,8 +2091,10 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
                 g.drawFittedText(text, labelArea.toNearestInt(), juce::Justification::centred, 1);
             };
 
-        drawKnobLabel(ui->count, "COUNT");
-        drawKnobLabel(ui->rate, "RATE");
+        if (ui->showCountLabel)
+            drawKnobLabel(ui->count, "COUNT");
+        if (ui->showRateLabel)
+            drawKnobLabel(ui->rate, "RATE");
         drawKnobLabel(ui->gain, "VOL");
         drawKnobLabel(ui->decay, "DECAY");
     }
@@ -2256,13 +2291,20 @@ void SlotMachineAudioProcessorEditor::resized()
 
         const int knobsY = iy + fileRowH + slotScaled(4);
         const int knobsH = slotScaled(112);
-        const int quarterW = iw / 4;
+        const int knobSpacing = slotScaled(12);
+        const int knobCount = 3;
+        const int knobW = juce::jmax(8, (iw - knobSpacing * (knobCount - 1)) / knobCount);
+        const int totalKnobWidth = knobW * knobCount + knobSpacing * (knobCount - 1);
+        const int knobStartX = ix + juce::jmax(0, (iw - totalKnobWidth) / 2);
 
-        const int knobW = juce::jmax(8, quarterW - slotScaled(8));
-        ui.count.setBounds(ix, knobsY, knobW, knobsH);
-        ui.rate.setBounds(ix + quarterW, knobsY, knobW, knobsH);
-        ui.gain.setBounds(ix + 2 * quarterW, knobsY, knobW, knobsH);
-        ui.decay.setBounds(ix + 3 * quarterW, knobsY, knobW, knobsH);
+        const juce::Rectangle<int> rateBounds(knobStartX, knobsY, knobW, knobsH);
+        const juce::Rectangle<int> gainBounds(rateBounds.withX(rateBounds.getRight() + knobSpacing));
+        const juce::Rectangle<int> decayBounds(gainBounds.withX(gainBounds.getRight() + knobSpacing));
+
+        ui.count.setBounds(rateBounds);
+        ui.rate.setBounds(rateBounds);
+        ui.gain.setBounds(gainBounds);
+        ui.decay.setBounds(decayBounds);
 
         const int buttonW = scaleDimension(60);
         const int buttonH = slotScaled(22);
@@ -2293,13 +2335,12 @@ void SlotMachineAudioProcessorEditor::resized()
             togglesY = absoluteMaxToggleY;
         }
 
-        const int countCentreX = ui.count.getBounds().getCentreX();
-        const int rateCentreX = ui.rate.getBounds().getCentreX();
+        const int timingCentreX = ui.rate.getBounds().getCentreX();
         const int gainCentreX = ui.gain.getBounds().getCentreX();
         const int decayCentreX = ui.decay.getBounds().getCentreX();
 
         const int midiY = togglesY + (controlBlockHeight - midiComboH) / 2;
-        ui.midiChannel.setBounds(countCentreX - midiComboW / 2, midiY, midiComboW, midiComboH);
+        ui.midiChannel.setBounds(timingCentreX - midiComboW / 2, midiY, midiComboW, midiComboH);
 
         const int buttonY = togglesY;
         const int labelY = buttonY + buttonH + labelGapY;
@@ -4033,6 +4074,8 @@ void SlotMachineAudioProcessorEditor::timerCallback()
 
     if (timingMode != lastTimingMode)
     {
+        refreshSlotTimingModeUI(timingMode);
+
         for (int i = 0; i < kNumSlots; ++i)
             if (auto* slot = slots[(size_t)i].get())
                 initialiseSlotTimingPair(i, *slot);
@@ -4127,6 +4170,32 @@ void SlotMachineAudioProcessorEditor::initialiseSlotTimingPair(int slotIndex, Sl
     else
     {
         handleSlotRateChanged(slotIndex, ui);
+    }
+}
+
+void SlotMachineAudioProcessorEditor::refreshSlotTimingModeUI()
+{
+    refreshSlotTimingModeUI(Opt::getInt(apvts, "optTimingMode", 0));
+}
+
+void SlotMachineAudioProcessorEditor::refreshSlotTimingModeUI(int timingMode)
+{
+    for (auto& slot : slots)
+        if (slot)
+            slot->updateTimingModeVisibility(timingMode);
+
+    repaint();
+}
+
+void SlotMachineAudioProcessorEditor::parameterChanged(const juce::String& parameterID, float)
+{
+    if (parameterID == "optTimingMode")
+    {
+        juce::MessageManager::callAsync([safe = juce::Component::SafePointer<SlotMachineAudioProcessorEditor>(this)]()
+        {
+            if (safe != nullptr)
+                safe->refreshSlotTimingModeUI();
+        });
     }
 }
 
