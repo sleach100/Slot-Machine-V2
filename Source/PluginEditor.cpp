@@ -836,13 +836,12 @@ void SlotMachineAudioProcessorEditor::SlotUI::updateTimingModeVisibility(int tim
         slider.setEnabled(shouldShow);
         slider.setInterceptsMouseClicks(shouldShow, shouldShow);
         slider.setAlpha(shouldShow ? 1.0f : 0.35f);
+        slider.setWantsKeyboardFocus(shouldShow);
 
-        if (auto* textBox = slider.getTextBox())
-        {
-            textBox->setVisible(shouldShow);
-            textBox->setEnabled(shouldShow);
-            textBox->setInterceptsMouseClicks(shouldShow, shouldShow);
-        }
+        if (shouldShow)
+            slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 54, 18);
+        else
+            slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     };
 
     configureSlider(rate, showRate);
