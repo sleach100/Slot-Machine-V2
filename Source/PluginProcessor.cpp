@@ -539,15 +539,13 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         masterBeatsAccum += dtSec / spb;
     const double currBeats = masterBeatsAccum;
     const int timingMode = (int)std::round(apvts.getRawParameterValue("optTimingMode")->load());
+    const double countModeCycleBeats = (double)kCountModeBaseBeats;
 
     // --- Compute current poly-cycle (in beats), matching Export MIDI logic ---
     int cycleLengthNumerator = 1;
     int cycleLengthDenominator = 1;
     bool hasCycleLength = false;
     const int maxDen = 32;
-
-    int cycleBeatsCount = 1;
-    bool hasCycleCount = false;
 
     for (int i = 0; i < kNumSlots; ++i)
     {
@@ -568,16 +566,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
             den /= g;
             accumulateCycleLength(den, num, cycleLengthNumerator, cycleLengthDenominator, hasCycleLength);
         }
-        else
-        {
-            // --- BeatsPerCycle mode ---
-            int count = 4;
-            if (auto* countParam = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Count"))
-                count = juce::jlimit(1, 64, (int)std::round(countParam->load()));
-
-            cycleBeatsCount = ilcm(cycleBeatsCount, count);
-            hasCycleCount = true;
-        }
+        // Beats/Cycle mode does not alter the master cycle length
     }
 
     double cycleBeats = 1.0;
@@ -594,10 +583,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     }
     else
     {
-        if (!hasCycleCount)
-            cycleBeatsCount = 1;
-
-        cycleBeats = juce::jlimit(1.0e-6, 512.0, (double)cycleBeatsCount);
+        cycleBeats = juce::jlimit(1.0e-6, 512.0, countModeCycleBeats);
     }
 
     // Cache for editor
@@ -646,7 +632,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
             else if (timingMode == 1)
             {
                 // --- BeatsPerCycle mode ---
-                const double stepBeats = (count > 0 ? cycleBeats / (double)count : 0.0);
+                const double stepBeats = (count > 0 ? countModeCycleBeats / (double)count : 0.0);
                 if (stepBeats > 0.0)
                     s.phase = std::fmod(currBeats, stepBeats) / stepBeats;
             }
@@ -751,7 +737,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         else
         {
             // --- BeatsPerCycle mode ---
-            const double stepBeats = (count > 0 ? cycleBeats / (double)count : 0.0);
+            const double stepBeats = (count > 0 ? countModeCycleBeats / (double)count : 0.0);
             const double denomBeats = currBeats - prevBeats;
             if (stepBeats <= 0.0 || denomBeats <= 0.0)
                 continue;
@@ -1170,8 +1156,7 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
     int cycleLengthNumerator = 1;
     int cycleLengthDenominator = 1;
     bool hasCycleLength = false;
-    int cycleBeatsCount = 1;
-    bool hasCycleCount = false;
+    const double countModeCycleBeats = (double)kCountModeBaseBeats;
     juce::StringArray missingFiles;
 
     for (int i = 0; i < kNumSlots; ++i)
@@ -1241,8 +1226,6 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
         else
         {
             // --- BeatsPerCycle mode ---
-            cycleBeatsCount = ilcm(cycleBeatsCount, count);
-            hasCycleCount = true;
             offline.count = count;
         }
 
@@ -1275,10 +1258,7 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
     }
     else
     {
-        if (!hasCycleCount)
-            cycleBeatsCount = 1;
-
-        cycleBeats = juce::jlimit(1.0e-6, 512.0, (double)cycleBeatsCount);
+        cycleBeats = juce::jlimit(1.0e-6, 512.0, countModeCycleBeats);
     }
 
     if (cyclesToExport <= 0)
@@ -1335,7 +1315,7 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
         {
             // --- BeatsPerCycle mode ---
             const int hitsPerCycle = juce::jmax(1, slot.count);
-            const double stepBeats = (hitsPerCycle > 0 ? cycleBeats / (double)hitsPerCycle : 0.0);
+            const double stepBeats = (hitsPerCycle > 0 ? countModeCycleBeats / (double)hitsPerCycle : 0.0);
             if (stepBeats <= 0.0)
                 continue;
 

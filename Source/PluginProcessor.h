@@ -15,6 +15,7 @@ public:
 
     // ====== Constants ======
     static constexpr int kNumSlots = 16;
+    static constexpr int kCountModeBaseBeats = 4;
 
     // ====== Construction ======
     SlotMachineAudioProcessor();
