@@ -250,7 +250,7 @@ void PolyrhythmVizComponent::updateSlotGeometry(int slotIndex, juce::Point<float
         slot.polygonPath.closeSubPath();
     }
 
-    const bool canEdgeWalk = slot.edgeWalk && slot.vertices.size() >= 3;
+    const bool canEdgeWalk = slot.edgeWalk && slot.vertices.size() >= 2;
 
     if (canEdgeWalk)
     {
