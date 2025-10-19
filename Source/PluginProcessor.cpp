@@ -58,8 +58,9 @@ static const juce::Identifier kPatternsNodeId("patterns");
 static const juce::Identifier kPatternNodeType("pattern");
 static const juce::Identifier kPatternNameProperty("name");
 static const juce::Identifier kPatternMasterBpmProperty("masterBPM");
+static const juce::Identifier kPatternTimingModeProperty("timingMode");
 static const juce::Identifier kCurrentPatternIndexProperty("currentPatternIndex");
-static constexpr int kCurrentStateVersion = 2;
+static constexpr int kCurrentStateVersion = 3;
 
 static bool varToFloat(const juce::var& value, float& out)
 {
@@ -871,9 +872,7 @@ void SlotMachineAudioProcessor::setStateInformation(const void* data, int sizeIn
             clearSlot(i);
 
             const auto base = juce::String("slot") + juce::String(i + 1) + "_";
-            const juce::StringArray paramSuffixes{ "Mute", "Solo", "Rate", "Gain", "Pan", "Decay", "MidiChannel" };
-
-            for (auto& suffix : paramSuffixes)
+            for (auto& suffix : kSlotParamSuffixes)
                 if (auto* param = dynamic_cast<juce::RangedAudioParameter*>(apvts.getParameter(base + suffix)))
                     param->setValueNotifyingHost(param->getDefaultValue());
         }
@@ -946,6 +945,16 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
 
     bool legacyGainsDetected = false;
 
+    auto deriveCountFromRate = [](float rateValue, int minCount, int maxCount)
+    {
+        if (!std::isfinite(rateValue))
+            rateValue = 1.0f;
+
+        const int candidate = juce::roundToInt(rateValue * 4.0f);
+        const int clampedMin = juce::jmax(minCount, 1);
+        return juce::jlimit(clampedMin, juce::jmax(clampedMin, maxCount), candidate);
+    };
+
     for (int i = 0; i < kNumSlots; ++i)
     {
         const juce::String gainId = "slot" + juce::String(i + 1) + "_Gain";
@@ -989,6 +998,72 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
                     const auto& range = decayParam->range;
                     apvts.state.setProperty(decayId, juce::jlimit(range.start, range.end, legacyMs), nullptr);
                 }
+            }
+        }
+
+        const juce::String rateId = "slot" + juce::String(i + 1) + "_Rate";
+        const juce::String countId = "slot" + juce::String(i + 1) + "_Count";
+
+        if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
+        {
+            const auto& countRange = countParam->getNormalisableRange();
+            const int minCount = (int)std::round(countRange.start);
+            const int maxCount = (int)std::round(countRange.end);
+
+            const bool hasCountProperty = apvts.state.hasProperty(countId);
+            if (!hasCountProperty)
+            {
+                float rateValue = 1.0f;
+
+                if (auto* rateParam = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter(rateId)))
+                    rateValue = rateParam->get();
+                else
+                {
+                    const auto rateVar = apvts.state.getProperty(rateId);
+                    varToFloat(rateVar, rateValue);
+                }
+
+                const int derivedCount = deriveCountFromRate(rateValue, minCount, maxCount);
+
+                apvts.state.setProperty(countId, derivedCount, nullptr);
+
+                const float normalised = countParam->convertTo0to1((float)derivedCount);
+                countParam->beginChangeGesture();
+                countParam->setValueNotifyingHost(normalised);
+                countParam->endChangeGesture();
+            }
+        }
+    }
+
+    if (auto patterns = apvts.state.getChildWithName(kPatternsNodeId); patterns.isValid())
+    {
+        const int numPatterns = patterns.getNumChildren();
+        for (int p = 0; p < numPatterns; ++p)
+        {
+            auto pattern = patterns.getChild(p);
+            for (int slot = 0; slot < kNumSlots; ++slot)
+            {
+                const juce::String rateId = slotParamId(slot, "Rate");
+                const juce::String countId = slotParamId(slot, "Count");
+
+                if (pattern.hasProperty(countId))
+                    continue;
+
+                float rateValue = 1.0f;
+                const auto rateVar = pattern.getProperty(rateId);
+                varToFloat(rateVar, rateValue);
+
+                int minCount = 1;
+                int maxCount = 64;
+                if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
+                {
+                    const auto& countRange = countParam->getNormalisableRange();
+                    minCount = (int)std::round(countRange.start);
+                    maxCount = (int)std::round(countRange.end);
+                }
+
+                const int derivedCount = deriveCountFromRate(rateValue, minCount, maxCount);
+                pattern.setProperty(countId, derivedCount, nullptr);
             }
         }
     }
@@ -1443,6 +1518,14 @@ juce::ValueTree SlotMachineAudioProcessor::createDefaultPatternTree(const juce::
         pattern.setProperty(kPatternMasterBpmProperty, defaultValue, nullptr);
     }
 
+    if (auto* timingParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter("optTimingMode")))
+    {
+        const auto* ranged = static_cast<juce::RangedAudioParameter*>(timingParam);
+        const float defaultNormalised = ranged->getDefaultValue();
+        const int defaultValue = (int)std::round(timingParam->convertFrom0to1(defaultNormalised));
+        pattern.setProperty(kPatternTimingModeProperty, defaultValue, nullptr);
+    }
+
     for (int slot = 0; slot < kNumSlots; ++slot)
     {
         for (auto& suffix : kSlotParamSuffixes)
@@ -1455,6 +1538,12 @@ juce::ValueTree SlotMachineAudioProcessor::createDefaultPatternTree(const juce::
                     if (auto* boolParam = dynamic_cast<juce::AudioParameterBool*>(parameter))
                     {
                         const bool defaultValue = ranged->getDefaultValue() >= 0.5f;
+                        pattern.setProperty(paramId, defaultValue, nullptr);
+                    }
+                    else if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(parameter))
+                    {
+                        const float defaultNormalised = ranged->getDefaultValue();
+                        const int defaultValue = (int)std::round(intParam->convertFrom0to1(defaultNormalised));
                         pattern.setProperty(paramId, defaultValue, nullptr);
                     }
                     else if (auto* floatParam = dynamic_cast<juce::AudioParameterFloat*>(parameter))
@@ -1494,6 +1583,9 @@ void SlotMachineAudioProcessor::storeCurrentStateInPattern(juce::ValueTree patte
     if (auto* masterParam = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter("masterBPM")))
         pattern.setProperty(kPatternMasterBpmProperty, masterParam->get(), nullptr);
 
+    if (auto* timingParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter("optTimingMode")))
+        pattern.setProperty(kPatternTimingModeProperty, timingParam->get(), nullptr);
+
     for (int slot = 0; slot < kNumSlots; ++slot)
     {
         for (auto& suffix : kSlotParamSuffixes)
@@ -1503,6 +1595,10 @@ void SlotMachineAudioProcessor::storeCurrentStateInPattern(juce::ValueTree patte
             if (auto* boolParam = dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter(paramId)))
             {
                 pattern.setProperty(paramId, boolParam->get(), nullptr);
+            }
+            else if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(paramId)))
+            {
+                pattern.setProperty(paramId, intParam->get(), nullptr);
             }
             else if (auto* floatParam = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter(paramId)))
             {
@@ -1539,6 +1635,21 @@ void SlotMachineAudioProcessor::applyPatternTree(const juce::ValueTree& pattern,
         masterParam->endChangeGesture();
     }
 
+    if (auto* timingParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter("optTimingMode")))
+    {
+        const auto valueVar = pattern.getProperty(kPatternTimingModeProperty);
+        const int current = timingParam->get();
+        int target = valueVar.isVoid() ? current : (int)valueVar;
+        const auto& range = timingParam->getNormalisableRange();
+        const int minValue = (int)std::round(range.start);
+        const int maxValue = (int)std::round(range.end);
+        target = juce::jlimit(minValue, maxValue, target);
+
+        timingParam->beginChangeGesture();
+        timingParam->setValueNotifyingHost(timingParam->convertTo0to1((float)target));
+        timingParam->endChangeGesture();
+    }
+
     for (int slot = 0; slot < kNumSlots; ++slot)
     {
         for (auto& suffix : kSlotParamSuffixes)
@@ -1552,6 +1663,18 @@ void SlotMachineAudioProcessor::applyPatternTree(const juce::ValueTree& pattern,
                 boolParam->beginChangeGesture();
                 *boolParam = target;
                 boolParam->endChangeGesture();
+            }
+            else if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(paramId)))
+            {
+                const int current = intParam->get();
+                int target = valueVar.isVoid() ? current : (int)valueVar;
+                const auto range = intParam->getNormalisableRange();
+                const int minValue = (int)std::round(range.start);
+                const int maxValue = (int)std::round(range.end);
+                target = juce::jlimit(minValue, maxValue, target);
+                intParam->beginChangeGesture();
+                intParam->setValueNotifyingHost(intParam->convertTo0to1((float)target));
+                intParam->endChangeGesture();
             }
             else if (auto* floatParam = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter(paramId)))
             {
