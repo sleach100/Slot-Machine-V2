@@ -1900,7 +1900,24 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
             auto& beatsSlider = slot->count;
             const bool hitBeatsControl = (eventComponent == &beatsSlider) || beatsSlider.isParentOf(eventComponent);
 
-            if (hitBeatsControl && e.mods.isPopupMenu())
+            const auto isCountTextBoxComponent = [&beatsSlider](juce::Component* component)
+            {
+                if (component == nullptr || component == &beatsSlider)
+                    return false;
+
+                if (!beatsSlider.isParentOf(component))
+                    return false;
+
+                for (auto* c = component; c != nullptr && c != &beatsSlider; c = c->getParentComponent())
+                {
+                    if (dynamic_cast<juce::Label*>(c) != nullptr || dynamic_cast<juce::TextEditor*>(c) != nullptr)
+                        return true;
+                }
+
+                return false;
+            };
+
+            if (hitBeatsControl && isCountTextBoxComponent(eventComponent) && e.mods.isLeftButtonDown())
             {
                 const int currentValue = juce::roundToInt(beatsSlider.getValue());
 
