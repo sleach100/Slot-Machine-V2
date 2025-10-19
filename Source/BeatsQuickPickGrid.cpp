@@ -4,7 +4,7 @@
 
 namespace
 {
-    constexpr auto kHighlightColour = juce::Colours::lightblue;
+    const juce::Colour kHighlightColour = juce::Colours::lightblue;
 }
 
 BeatsQuickPickGrid::BeatsQuickPickGrid(Options opts,
