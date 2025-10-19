@@ -1531,6 +1531,12 @@ juce::ValueTree SlotMachineAudioProcessor::createDefaultPatternTree(const juce::
                         const bool defaultValue = ranged->getDefaultValue() >= 0.5f;
                         pattern.setProperty(paramId, defaultValue, nullptr);
                     }
+                    else if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(parameter))
+                    {
+                        const float defaultNormalised = ranged->getDefaultValue();
+                        const int defaultValue = (int)std::round(intParam->convertFrom0to1(defaultNormalised));
+                        pattern.setProperty(paramId, defaultValue, nullptr);
+                    }
                     else if (auto* floatParam = dynamic_cast<juce::AudioParameterFloat*>(parameter))
                     {
                         const float defaultValue = floatParam->convertFrom0to1(ranged->getDefaultValue());
@@ -1577,6 +1583,10 @@ void SlotMachineAudioProcessor::storeCurrentStateInPattern(juce::ValueTree patte
             if (auto* boolParam = dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter(paramId)))
             {
                 pattern.setProperty(paramId, boolParam->get(), nullptr);
+            }
+            else if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(paramId)))
+            {
+                pattern.setProperty(paramId, intParam->get(), nullptr);
             }
             else if (auto* floatParam = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter(paramId)))
             {
@@ -1626,6 +1636,18 @@ void SlotMachineAudioProcessor::applyPatternTree(const juce::ValueTree& pattern,
                 boolParam->beginChangeGesture();
                 *boolParam = target;
                 boolParam->endChangeGesture();
+            }
+            else if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(paramId)))
+            {
+                const int current = intParam->get();
+                int target = valueVar.isVoid() ? current : (int)valueVar;
+                const auto range = intParam->getNormalisableRange();
+                const int minValue = (int)std::round(range.start);
+                const int maxValue = (int)std::round(range.end);
+                target = juce::jlimit(minValue, maxValue, target);
+                intParam->beginChangeGesture();
+                intParam->setValueNotifyingHost(intParam->convertTo0to1((float)target));
+                intParam->endChangeGesture();
             }
             else if (auto* floatParam = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter(paramId)))
             {
