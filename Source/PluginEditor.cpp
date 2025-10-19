@@ -1311,8 +1311,8 @@ private:
         visualizerModeCombo.setSelectedId(edgeWalk ? 1 : 2, juce::dontSendNotification);
         blockVisualizerModeUpdate = false;
 
-        const int timingMode = Opt::getInt(apvts, "optTimingMode", timingModeValues.front());
-        applyVisualizerAvailabilityForTimingMode(timingMode);
+        const int timingModeValue = Opt::getInt(apvts, "optTimingMode", timingModeValues.front());
+        applyVisualizerAvailabilityForTimingMode(timingModeValue);
 
         const int currentSampleRate = Opt::getInt(apvts, "optSampleRate", sampleRateValues.front());
         int sampleRateId = 1;
@@ -1329,11 +1329,10 @@ private:
         sampleRateCombo.setSelectedId(sampleRateId, juce::dontSendNotification);
         blockSampleRateUpdate = false;
 
-        const int timingMode = Opt::getInt(apvts, "optTimingMode", timingModeValues.front());
         int timingModeId = 1;
         for (int i = 0; i < (int)timingModeValues.size(); ++i)
         {
-            if (timingModeValues[(size_t)i] == timingMode)
+            if (timingModeValues[(size_t)i] == timingModeValue)
             {
                 timingModeId = i + 1;
                 break;
