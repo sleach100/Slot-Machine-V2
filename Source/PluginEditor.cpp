@@ -1646,6 +1646,7 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
     addAndMakeVisible(btnExportMidi);   beautify(btnExportMidi);   btnExportMidi.addListener(this);
     addAndMakeVisible(btnExportAudio);  beautify(btnExportAudio);  btnExportAudio.addListener(this);
     addAndMakeVisible(btnVisualizer);   beautify(btnVisualizer);   btnVisualizer.addListener(this);
+    addAndMakeVisible(btnTutorial);     beautify(btnTutorial);     btnTutorial.addListener(this);
     addAndMakeVisible(btnUserManual);   beautify(btnUserManual);   btnUserManual.addListener(this);
     addAndMakeVisible(btnAbout);        beautify(btnAbout);        btnAbout.addListener(this);
 
@@ -2186,7 +2187,7 @@ void SlotMachineAudioProcessorEditor::resized()
         auto sliderArea = top.removeFromLeft(420);
 
         auto buttonArea = top.reduced(10, buttonInsetY);
-        const int numButtons = 10; // Start/Save/Load/Reset Loop/Reset UI/Initialize/Options/Export MIDI/Export Audio/Visualizer (User Manual and About below)
+        const int numButtons = 10; // Start/Save/Load/Reset Loop/Reset UI/Initialize/Options/Export MIDI/Export Audio/Visualizer (Tutorial, User Manual, and About below)
         const int bw = buttonArea.getWidth() / numButtons;
         const int bh = buttonHeight;
         const int firstRowY = buttonArea.getY();
@@ -2213,8 +2214,8 @@ void SlotMachineAudioProcessorEditor::resized()
 
         const int barH = 8;
         const int barLeft = buttonArea.getX();
-        const int userManualLeft = buttonArea.getX() + 7 * bw;
-        const int barRight = userManualLeft - 20; // keep a 20px gap before the User Manual button
+        const int tutorialLeft = buttonArea.getX() + 7 * bw;
+        const int barRight = tutorialLeft - 20; // keep a 20px gap before the Tutorial button
         const int barWidth = juce::jmax(0, barRight - barLeft);
         masterBarBounds = juce::Rectangle<int>(barLeft,
                                                buttonBottom - barH - 10,
@@ -2241,8 +2242,9 @@ void SlotMachineAudioProcessorEditor::resized()
         btnExportMidi.setBounds(firstRowBounds(7));
         btnExportAudio.setBounds(firstRowBounds(8));
         btnVisualizer.setBounds(firstRowBounds(9));
-        btnUserManual.setBounds(secondRowBounds(7));
-        btnAbout.setBounds(secondRowBounds(8));
+        btnTutorial.setBounds(secondRowBounds(7));
+        btnUserManual.setBounds(secondRowBounds(8));
+        btnAbout.setBounds(secondRowBounds(9));
     }
 
     const int tabsLift = 73;
@@ -3112,6 +3114,12 @@ void SlotMachineAudioProcessorEditor::buttonClicked(juce::Button* b)
             openVisualizerWindow();
             lastShowVisualizer = true;
         }
+        return;
+    }
+
+    if (b == &btnTutorial)
+    {
+        // Tutorial functionality will be implemented later.
         return;
     }
 
