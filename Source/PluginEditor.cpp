@@ -1745,11 +1745,7 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
             }
         };
 
-        if (auto* textBox = ui->count.getTextBoxComponent())
-        {
-            textBox->addMouseListener(this, true);
-            textBox->setMouseClickGrabsKeyboardFocus(true);
-        }
+        ui->count.addMouseListener(this, true);
 
         ui->muteA = std::make_unique<APVTS::ButtonAttachment>(apvts, "slot" + juce::String(idx) + "_Mute", ui->muteBtn);
         ui->soloA = std::make_unique<APVTS::ButtonAttachment>(apvts, "slot" + juce::String(idx) + "_Solo", ui->soloBtn);
@@ -1833,45 +1829,39 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
     juce::AudioProcessorEditor::mouseDown(e);
 
     auto* eventComponent = e.eventComponent;
-    if (eventComponent != nullptr)
+    if (eventComponent == nullptr)
+        return;
+
+    for (int i = 0; i < kNumSlots; ++i)
     {
-        for (int i = 0; i < kNumSlots; ++i)
+        if (auto* slot = slots[(size_t)i].get())
         {
-            if (auto* slot = slots[(size_t)i].get())
+            auto& beatsSlider = slot->count;
+            const bool hitBeatsControl = (eventComponent == &beatsSlider) || beatsSlider.isParentOf(eventComponent);
+
+            if (hitBeatsControl && e.mods.isPopupMenu())
             {
-                if (slot->count.getTextBoxComponent() == eventComponent)
+                const int currentValue = (int)std::round(beatsSlider.getValue());
+
+                BeatsQuickPickGrid::Options opts;
+                opts.maxBeat = slot->beatsQuickPickExpanded ? kMaxBeatsPerSlot : kBeatsQuickPickDefaultMax;
+                if (currentValue > kBeatsQuickPickDefaultMax)
+                    opts.maxBeat = kMaxBeatsPerSlot;
+
+                slot->beatsQuickPickExpanded = opts.maxBeat > kBeatsQuickPickDefaultMax;
+
+                auto pickHandler = [slot](int picked)
                 {
-                    if (e.mods.isPopupMenu())
-                    {
-                        const int currentValue = (int)std::round(slot->count.getValue());
+                    slot->beatsQuickPickExpanded = picked > kBeatsQuickPickDefaultMax;
+                    slot->count.setValue(picked, juce::sendNotificationSync);
+                };
 
-                        BeatsQuickPickGrid::Options opts;
-                        opts.maxBeat = slot->beatsQuickPickExpanded ? kMaxBeatsPerSlot : kBeatsQuickPickDefaultMax;
-                        if (currentValue > kBeatsQuickPickDefaultMax)
-                            opts.maxBeat = kMaxBeatsPerSlot;
+                auto grid = std::make_unique<BeatsQuickPickGrid>(opts, std::move(pickHandler), currentValue);
+                slot->beatsQuickPickExpanded = grid->isExpanded();
 
-                        slot->beatsQuickPickExpanded = opts.maxBeat > kBeatsQuickPickDefaultMax;
-
-                        auto pickHandler = [slot](int picked)
-                        {
-                            slot->beatsQuickPickExpanded = picked > kBeatsQuickPickDefaultMax;
-                            slot->count.setValue(picked, juce::sendNotificationSync);
-
-                            if (auto* tb = slot->count.getTextBoxComponent())
-                                tb->grabKeyboardFocus();
-                        };
-
-                        auto grid = std::make_unique<BeatsQuickPickGrid>(opts, std::move(pickHandler), currentValue);
-                        slot->beatsQuickPickExpanded = grid->isExpanded();
-
-                        auto calloutBounds = juce::Rectangle<int>(e.getScreenX(), e.getScreenY(), 1, 1);
-                        juce::CallOutBox::launchAsynchronously(std::unique_ptr<juce::Component>(grid.release()), calloutBounds, nullptr);
-                        e.consume();
-                        return;
-                    }
-
-                    break;
-                }
+                auto calloutBounds = juce::Rectangle<int>(e.getScreenX(), e.getScreenY(), 1, 1);
+                juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
+                return;
             }
         }
     }
@@ -1880,39 +1870,41 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 void SlotMachineAudioProcessorEditor::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
 {
     auto* eventComponent = e.eventComponent;
-    if (eventComponent != nullptr)
+    if (eventComponent == nullptr)
     {
-        for (int i = 0; i < kNumSlots; ++i)
+        juce::AudioProcessorEditor::mouseWheelMove(e, wheel);
+        return;
+    }
+
+    for (int i = 0; i < kNumSlots; ++i)
+    {
+        if (auto* slot = slots[(size_t)i].get())
         {
-            if (auto* slot = slots[(size_t)i].get())
+            auto& beatsSlider = slot->count;
+            const bool hitBeatsControl = (eventComponent == &beatsSlider) || beatsSlider.isParentOf(eventComponent);
+
+            if (hitBeatsControl)
             {
-                if (slot->count.getTextBoxComponent() == eventComponent)
-                {
-                    if (wheel.deltaY == 0.0f)
-                        return;
-
-                    const bool accelerated = e.mods.isCtrlDown() || e.mods.isCommandDown();
-                    const int step = accelerated ? 4 : 1;
-
-                    int value = (int)std::round(slot->count.getValue());
-                    if (wheel.deltaY > 0.0f)
-                        value += step;
-                    else if (wheel.deltaY < 0.0f)
-                        value -= step;
-
-                    value = juce::jlimit(1, kMaxBeatsPerSlot, value);
-
-                    if (value != (int)std::round(slot->count.getValue()))
-                        slot->count.setValue(value, juce::sendNotificationSync);
-
-                    slot->beatsQuickPickExpanded = value > kBeatsQuickPickDefaultMax;
-
-                    if (auto* tb = slot->count.getTextBoxComponent())
-                        tb->grabKeyboardFocus();
-
-                    e.consume();
+                if (wheel.deltaY == 0.0f)
                     return;
-                }
+
+                const bool accelerated = e.mods.isCtrlDown() || e.mods.isCommandDown();
+                const int step = accelerated ? 4 : 1;
+
+                int value = (int)std::round(beatsSlider.getValue());
+                if (wheel.deltaY > 0.0f)
+                    value += step;
+                else if (wheel.deltaY < 0.0f)
+                    value -= step;
+
+                const int limit = slot->beatsQuickPickExpanded ? kMaxBeatsPerSlot : kBeatsQuickPickDefaultMax;
+                value = juce::jlimit(1, limit, value);
+
+                if (value != (int)std::round(beatsSlider.getValue()))
+                    beatsSlider.setValue(value, juce::sendNotificationSync);
+
+                slot->beatsQuickPickExpanded = value > kBeatsQuickPickDefaultMax;
+                return;
             }
         }
     }
