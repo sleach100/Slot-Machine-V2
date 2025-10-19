@@ -1005,8 +1005,9 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
 
         if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
         {
-            const int minCount = (int)std::round(countParam->range.start);
-            const int maxCount = (int)std::round(countParam->range.end);
+            const auto& countRange = countParam->getNormalisableRange();
+            const int minCount = (int)std::round(countRange.start);
+            const int maxCount = (int)std::round(countRange.end);
 
             const bool hasCountProperty = apvts.state.hasProperty(countId);
             if (!hasCountProperty)
@@ -1055,8 +1056,9 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
                 int maxCount = 64;
                 if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
                 {
-                    minCount = (int)std::round(countParam->range.start);
-                    maxCount = (int)std::round(countParam->range.end);
+                    const auto& countRange = countParam->getNormalisableRange();
+                    minCount = (int)std::round(countRange.start);
+                    maxCount = (int)std::round(countRange.end);
                 }
 
                 const int derivedCount = deriveCountFromRate(rateValue, minCount, maxCount);
