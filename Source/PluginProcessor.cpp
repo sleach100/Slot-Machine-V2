@@ -59,7 +59,7 @@ static const juce::Identifier kPatternNodeType("pattern");
 static const juce::Identifier kPatternNameProperty("name");
 static const juce::Identifier kPatternMasterBpmProperty("masterBPM");
 static const juce::Identifier kCurrentPatternIndexProperty("currentPatternIndex");
-static constexpr int kCurrentStateVersion = 2;
+static constexpr int kCurrentStateVersion = 3;
 
 static bool varToFloat(const juce::var& value, float& out)
 {
@@ -871,9 +871,7 @@ void SlotMachineAudioProcessor::setStateInformation(const void* data, int sizeIn
             clearSlot(i);
 
             const auto base = juce::String("slot") + juce::String(i + 1) + "_";
-            const juce::StringArray paramSuffixes{ "Mute", "Solo", "Rate", "Gain", "Pan", "Decay", "MidiChannel" };
-
-            for (auto& suffix : paramSuffixes)
+            for (auto& suffix : kSlotParamSuffixes)
                 if (auto* param = dynamic_cast<juce::RangedAudioParameter*>(apvts.getParameter(base + suffix)))
                     param->setValueNotifyingHost(param->getDefaultValue());
         }
@@ -946,6 +944,16 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
 
     bool legacyGainsDetected = false;
 
+    auto deriveCountFromRate = [](float rateValue, int minCount, int maxCount)
+    {
+        if (!std::isfinite(rateValue))
+            rateValue = 1.0f;
+
+        const int candidate = juce::roundToInt(rateValue * 4.0f);
+        const int clampedMin = juce::jmax(minCount, 1);
+        return juce::jlimit(clampedMin, juce::jmax(clampedMin, maxCount), candidate);
+    };
+
     for (int i = 0; i < kNumSlots; ++i)
     {
         const juce::String gainId = "slot" + juce::String(i + 1) + "_Gain";
@@ -989,6 +997,70 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
                     const auto& range = decayParam->range;
                     apvts.state.setProperty(decayId, juce::jlimit(range.start, range.end, legacyMs), nullptr);
                 }
+            }
+        }
+
+        const juce::String rateId = "slot" + juce::String(i + 1) + "_Rate";
+        const juce::String countId = "slot" + juce::String(i + 1) + "_Count";
+
+        if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
+        {
+            const int minCount = (int)std::round(countParam->range.start);
+            const int maxCount = (int)std::round(countParam->range.end);
+
+            const bool hasCountProperty = apvts.state.hasProperty(countId);
+            if (!hasCountProperty)
+            {
+                float rateValue = 1.0f;
+
+                if (auto* rateParam = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter(rateId)))
+                    rateValue = rateParam->get();
+                else
+                {
+                    const auto rateVar = apvts.state.getProperty(rateId);
+                    varToFloat(rateVar, rateValue);
+                }
+
+                const int derivedCount = deriveCountFromRate(rateValue, minCount, maxCount);
+
+                apvts.state.setProperty(countId, derivedCount, nullptr);
+
+                const float normalised = countParam->convertTo0to1((float)derivedCount);
+                countParam->beginChangeGesture();
+                countParam->setValueNotifyingHost(normalised);
+                countParam->endChangeGesture();
+            }
+        }
+    }
+
+    if (auto patterns = apvts.state.getChildWithName(kPatternsNodeId); patterns.isValid())
+    {
+        const int numPatterns = patterns.getNumChildren();
+        for (int p = 0; p < numPatterns; ++p)
+        {
+            auto pattern = patterns.getChild(p);
+            for (int slot = 0; slot < kNumSlots; ++slot)
+            {
+                const juce::String rateId = slotParamId(slot, "Rate");
+                const juce::String countId = slotParamId(slot, "Count");
+
+                if (pattern.hasProperty(countId))
+                    continue;
+
+                float rateValue = 1.0f;
+                const auto rateVar = pattern.getProperty(rateId);
+                varToFloat(rateVar, rateValue);
+
+                int minCount = 1;
+                int maxCount = 64;
+                if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
+                {
+                    minCount = (int)std::round(countParam->range.start);
+                    maxCount = (int)std::round(countParam->range.end);
+                }
+
+                const int derivedCount = deriveCountFromRate(rateValue, minCount, maxCount);
+                pattern.setProperty(countId, derivedCount, nullptr);
             }
         }
     }
