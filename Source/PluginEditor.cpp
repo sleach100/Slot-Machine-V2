@@ -1856,11 +1856,12 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
                     slot->count.setValue(picked, juce::sendNotificationSync);
                 };
 
-                auto grid = std::make_unique<BeatsQuickPickGrid>(opts, std::move(pickHandler), currentValue);
+                auto* grid = new BeatsQuickPickGrid(opts, std::move(pickHandler), currentValue);
                 slot->beatsQuickPickExpanded = grid->isExpanded();
 
-                auto calloutBounds = juce::Rectangle<int>(e.getScreenX(), e.getScreenY(), 1, 1);
-                juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
+                const auto screenPos = e.getScreenPosition().roundToInt();
+                auto calloutBounds = juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1);
+                juce::CallOutBox::launchAsynchronously(*grid, calloutBounds, nullptr);
                 return;
             }
         }
