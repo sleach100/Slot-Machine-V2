@@ -3,6 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
 #include <atomic>
+#include <cstdint>
+#include <limits>
 
 class SlotMachineAudioProcessor : public juce::AudioProcessor
 {
@@ -107,6 +109,11 @@ public:
     double getMasterPhase() const;
     bool exportAudioCycles(const juce::File& file, int cyclesToExport, juce::String& errorMessage);
 
+    // Count beat masks
+    uint64_t getSlotCountMask(int index) const;
+    void     setSlotCountMask(int index, uint64_t mask);
+    static uint64_t maskForBeats(int beats);
+
     // Pattern management
     juce::ValueTree getPatternsTree();
     juce::ValueTree createDefaultPatternTree(const juce::String& name) const;
@@ -118,6 +125,7 @@ public:
 
 private:
     std::array<std::atomic<int>, kNumSlots> pendingManualTriggers;
+    std::array<std::atomic<uint64_t>, kNumSlots> countBeatMasks{};
     double currentCycleBeats = 1.0;
     double currentCyclePhase01 = 0.0;
 
@@ -208,6 +216,7 @@ private:
 
     bool initialiseOnFirstEditor = true;
 
+    void refreshSlotCountMasksFromState();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SlotMachineAudioProcessor)
 };

@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 
 using APVTS = juce::AudioProcessorValueTreeState;
 
@@ -60,7 +61,7 @@ static const juce::Identifier kPatternNameProperty("name");
 static const juce::Identifier kPatternMasterBpmProperty("masterBPM");
 static const juce::Identifier kPatternTimingModeProperty("timingMode");
 static const juce::Identifier kCurrentPatternIndexProperty("currentPatternIndex");
-static constexpr int kCurrentStateVersion = 3;
+static constexpr int kCurrentStateVersion = 4;
 
 static bool varToFloat(const juce::var& value, float& out)
 {
@@ -125,6 +126,47 @@ static const juce::StringArray kSlotParamSuffixes{ "Mute", "Solo", "Rate", "Coun
 static juce::String slotParamId(int slotIndex, const juce::String& suffix)
 {
     return "slot" + juce::String(slotIndex + 1) + "_" + suffix;
+}
+
+static constexpr uint64_t kDefaultCountMask = std::numeric_limits<uint64_t>::max();
+
+static uint64_t parseCountMaskVar(const juce::var& value)
+{
+    if (value.isVoid())
+        return kDefaultCountMask;
+
+    if (value.isString())
+    {
+        auto text = value.toString().trim();
+        if (text.isEmpty())
+            return kDefaultCountMask;
+
+        if (text.startsWithIgnoreCase("0x"))
+            text = text.substring(2);
+
+        const juce::int64 parsed = text.getHexValue64();
+        return (uint64_t)(juce::uint64)parsed;
+    }
+
+    if (value.isDouble() || value.isInt())
+    {
+        const double numeric = (double)value;
+        if (!std::isfinite(numeric) || numeric < 0.0)
+            return kDefaultCountMask;
+
+        if (numeric >= (double)std::numeric_limits<uint64_t>::max())
+            return std::numeric_limits<uint64_t>::max();
+
+        return (uint64_t)numeric;
+    }
+
+    return kDefaultCountMask;
+}
+
+static juce::String serialiseCountMaskValue(uint64_t mask)
+{
+    auto text = juce::String::toHexString((juce::uint64)mask).toUpperCase();
+    return text.paddedLeft('0', 16);
 }
 }
 
@@ -389,6 +431,8 @@ SlotMachineAudioProcessor::SlotMachineAudioProcessor()
     if (!apvts.state.hasProperty(kAutoInitialiseProperty))
         apvts.state.setProperty(kAutoInitialiseProperty, true, nullptr);
     initialiseOnFirstEditor = static_cast<bool>(apvts.state.getProperty(kAutoInitialiseProperty, true));
+
+    refreshSlotCountMasksFromState();
 }
 
 SlotMachineAudioProcessor::~SlotMachineAudioProcessor() {}
@@ -742,12 +786,20 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
             if (stepBeats <= 0.0 || denomBeats <= 0.0)
                 continue;
 
+            const uint64_t activeMask = getSlotCountMask(i) & maskForBeats(count);
+            if (activeMask == 0)
+                continue;
+
             const int firstIndex = (int)std::ceil(prevBeats / stepBeats);
             for (int n = firstIndex;; ++n)
             {
                 const double hitBeat = (double)n * stepBeats;
                 if (hitBeat >= currBeats)
                     break;
+
+                const int beatIndex = (count > 0) ? (n % count) : 0;
+                if (((activeMask >> beatIndex) & 1ull) == 0)
+                    continue;
 
                 double fracBlock = (hitBeat - prevBeats) / denomBeats;
                 fracBlock = juce::jlimit(0.0, 1.0, fracBlock);
@@ -798,6 +850,8 @@ void SlotMachineAudioProcessor::initialiseStateForFirstEditor()
     clearAllSlots();
     resetAllPhases(false);
 
+    refreshSlotCountMasksFromState();
+
     apvts.state.setProperty(kAutoInitialiseProperty, false, nullptr);
 }
 
@@ -846,6 +900,7 @@ void SlotMachineAudioProcessor::setStateInformation(const void* data, int sizeIn
     {
         apvts.replaceState(juce::ValueTree::fromXml(*xml));
         upgradeLegacySlotParameters();
+        refreshSlotCountMasksFromState();
 
         // Each new session should start from a blank state regardless of what was stored in the
         // host project.  Force the first editor to reinitialise the processor to its defaults and
@@ -898,6 +953,21 @@ void SlotMachineAudioProcessor::setSlotFilePath(int index, const juce::String& p
     jassert(juce::isPositiveAndBelow(index, kNumSlots));
     slots[(size_t)index].setFilePath(path);
     apvts.state.setProperty("slot" + juce::String(index + 1) + "_File", path, nullptr);
+}
+
+void SlotMachineAudioProcessor::refreshSlotCountMasksFromState()
+{
+    for (int i = 0; i < kNumSlots; ++i)
+    {
+        const juce::String propertyId = slotParamId(i, "CountMask");
+        const juce::var storedValue = apvts.state.getProperty(propertyId);
+        const uint64_t mask = parseCountMaskVar(storedValue);
+        countBeatMasks[(size_t)i].store(mask, std::memory_order_relaxed);
+
+        const juce::String serialised = serialiseCountMaskValue(mask);
+        if (storedValue.toString() != serialised)
+            apvts.state.setProperty(propertyId, serialised, nullptr);
+    }
 }
 
 bool SlotMachineAudioProcessor::loadSampleForSlot(int index, const juce::File& f, bool allowTail)
@@ -1019,6 +1089,10 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
                 countParam->endChangeGesture();
             }
         }
+
+        const juce::String maskId = slotParamId(i, "CountMask");
+        const uint64_t maskValue = parseCountMaskVar(apvts.state.getProperty(maskId));
+        apvts.state.setProperty(maskId, serialiseCountMaskValue(maskValue), nullptr);
     }
 
     if (auto patterns = apvts.state.getChildWithName(kPatternsNodeId); patterns.isValid())
@@ -1050,12 +1124,18 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
 
                 const int derivedCount = deriveCountFromRate(rateValue, minCount, maxCount);
                 pattern.setProperty(countId, derivedCount, nullptr);
+
+                const juce::String maskId = slotParamId(slot, "CountMask");
+                if (!pattern.hasProperty(maskId))
+                    pattern.setProperty(maskId, serialiseCountMaskValue(kDefaultCountMask), nullptr);
             }
         }
     }
 
     apvts.state.setProperty(kStateVersionProperty, kCurrentStateVersion, nullptr);
     apvts.state.setProperty(kAutoInitialiseProperty, false, nullptr);
+
+    refreshSlotCountMasksFromState();
 }
 
 void SlotMachineAudioProcessor::clearSlot(int index, bool allowTail)
@@ -1075,6 +1155,38 @@ uint32_t SlotMachineAudioProcessor::getSlotHitCounter(int index) const
 {
     jassert(juce::isPositiveAndBelow(index, kNumSlots));
     return slots[(size_t)index].hitCounter;
+}
+
+uint64_t SlotMachineAudioProcessor::getSlotCountMask(int index) const
+{
+    if (!juce::isPositiveAndBelow(index, kNumSlots))
+        return kDefaultCountMask;
+
+    return countBeatMasks[(size_t)index].load(std::memory_order_relaxed);
+}
+
+void SlotMachineAudioProcessor::setSlotCountMask(int index, uint64_t mask)
+{
+    if (!juce::isPositiveAndBelow(index, kNumSlots))
+        return;
+
+    countBeatMasks[(size_t)index].store(mask, std::memory_order_relaxed);
+
+    const juce::String propertyId = slotParamId(index, "CountMask");
+    const juce::String serialised = serialiseCountMaskValue(mask);
+    if (apvts.state.getProperty(propertyId).toString() != serialised)
+        apvts.state.setProperty(propertyId, serialised, nullptr);
+}
+
+uint64_t SlotMachineAudioProcessor::maskForBeats(int beats)
+{
+    if (beats <= 0)
+        return 0ull;
+
+    if (beats >= 64)
+        return std::numeric_limits<uint64_t>::max();
+
+    return (1ull << beats) - 1ull;
 }
 
 double SlotMachineAudioProcessor::getSlotPhase(int index) const
@@ -1145,6 +1257,7 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
         int den = 1;
         int count = 0;
         float gain = 1.0f;
+        uint64_t mask = kDefaultCountMask;
         std::vector<int> triggers;
     };
 
@@ -1202,6 +1315,7 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
         OfflineSlot offline;
         offline.voice = std::move(voice);
         offline.gain = juce::jlimit(0.0f, 1.0f, gainPercent * 0.01f);
+        offline.mask = getSlotCountMask(i);
 
         if (timingMode == 0)
         {
@@ -1319,6 +1433,10 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
             if (stepBeats <= 0.0)
                 continue;
 
+            const uint64_t mask = slot.mask & maskForBeats(slot.count);
+            if (mask == 0)
+                continue;
+
             const int sampleLength = slot.voice.sample.getNumSamples();
 
             slot.triggers.clear();
@@ -1330,6 +1448,9 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
 
                 for (int hit = 0; hit < hitsPerCycle; ++hit)
                 {
+                    if (((mask >> hit) & 1ull) == 0)
+                        continue;
+
                     const double beatPosition = cycleBeatOffset + stepBeats * (double)hit;
                     const double timeSeconds = beatPosition * secondsPerBeat;
                     const int triggerSample = juce::roundToIntAccurate(timeSeconds * engineSampleRate);
@@ -1592,6 +1713,9 @@ void SlotMachineAudioProcessor::storeCurrentStateInPattern(juce::ValueTree patte
 
         const juce::String fileId = slotParamId(slot, "File");
         pattern.setProperty(fileId, slots[(size_t)slot].getFilePath(), nullptr);
+
+        const juce::String maskId = slotParamId(slot, "CountMask");
+        pattern.setProperty(maskId, apvts.state.getProperty(maskId), nullptr);
     }
 }
 
@@ -1677,6 +1801,10 @@ void SlotMachineAudioProcessor::applyPatternTree(const juce::ValueTree& pattern,
 
         const juce::String fileId = slotParamId(slot, "File");
         const juce::String path = pattern.getProperty(fileId).toString();
+
+        const juce::String maskId = slotParamId(slot, "CountMask");
+        const uint64_t maskValue = parseCountMaskVar(pattern.getProperty(maskId));
+        setSlotCountMask(slot, maskValue);
 
         if (path.isNotEmpty())
         {

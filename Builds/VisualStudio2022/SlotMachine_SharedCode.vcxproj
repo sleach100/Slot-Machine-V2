@@ -145,6 +145,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\BeatsQuickPickGrid.cpp"/>
+    <ClCompile Include="..\..\Source\CountBeatMaskGrid.cpp"/>
     <ClCompile Include="..\..\Source\PluginProcessor.cpp"/>
     <ClCompile Include="..\..\Source\PluginEditor.cpp"/>
     <ClCompile Include="..\..\Source\PolyrhythmVizComponent.cpp"/>
@@ -2839,6 +2840,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\Source\BeatsQuickPickGrid.h"/>
     <ClInclude Include="..\..\Source\PluginProcessor.h"/>
+    <ClInclude Include="..\..\Source\CountBeatMaskGrid.h"/>
     <ClInclude Include="..\..\Source\PluginEditor.h"/>
     <ClInclude Include="..\..\Source\PolyrhythmVizComponent.h"/>
     <ClInclude Include="..\..\..\..\..\JUCE\modules\juce_audio_basics\audio_play_head\juce_AudioPlayHead.h"/>
