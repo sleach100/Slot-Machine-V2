@@ -673,6 +673,9 @@
     <ClCompile Include="..\..\Source\BeatsQuickPickGrid.cpp">
       <Filter>SlotMachine\Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\CountBeatMaskGrid.cpp">
+      <Filter>SlotMachine\Source</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\PluginProcessor.cpp">
       <Filter>SlotMachine\Source</Filter>
     </ClCompile>
@@ -3547,6 +3550,9 @@
       <Filter>SlotMachine\Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\PluginProcessor.h">
+      <Filter>SlotMachine\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\CountBeatMaskGrid.h">
       <Filter>SlotMachine\Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\PluginEditor.h">

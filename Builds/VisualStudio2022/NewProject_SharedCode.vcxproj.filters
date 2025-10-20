@@ -676,6 +676,9 @@
     <ClCompile Include="..\..\Source\PluginEditor.cpp">
       <Filter>NewProject\Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\CountBeatMaskGrid.cpp">
+      <Filter>NewProject\Source</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\..\JUCE\modules\juce_audio_basics\audio_play_head\juce_AudioPlayHead.cpp">
       <Filter>JUCE Modules\juce_audio_basics\audio_play_head</Filter>
     </ClCompile>
@@ -3535,6 +3538,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Source\PluginProcessor.h">
+      <Filter>NewProject\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\CountBeatMaskGrid.h">
       <Filter>NewProject\Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\PluginEditor.h">
