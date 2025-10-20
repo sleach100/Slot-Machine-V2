@@ -160,7 +160,7 @@ private:
     juce::TextButton btnOptions{ "Options" };
     juce::TextButton btnExportMidi{ "Export MIDI" };
     juce::TextButton btnExportAudio{ "Export Audio" };
-    juce::TextButton btnVisualizer{ "Visualizer" };
+    juce::TextButton btnVisualizer{ "Visualize" };
     juce::TextButton btnTutorial{ "Tutorial" };
     juce::TextButton btnUserManual{ "User Manual" };
     juce::TextButton btnAbout{ "About" };

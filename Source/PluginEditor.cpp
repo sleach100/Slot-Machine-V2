@@ -1084,8 +1084,8 @@ public:
 
         addAndMakeVisible(timingModeCombo);
         timingModeCombo.setJustificationType(juce::Justification::centredLeft);
-        timingModeCombo.addItem("Rate (Hits/Beat)", 1);
-        timingModeCombo.addItem("Beats/Cycle (Count)", 2);
+        timingModeCombo.addItem("Rate (Decimal/1-4)", 1);
+        timingModeCombo.addItem("Count (Beats/Cycle)", 2);
         timingModeCombo.onChange = [this]() { handleTimingModeSelection(); };
 
         // slot scale
