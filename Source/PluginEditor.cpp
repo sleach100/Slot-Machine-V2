@@ -1780,10 +1780,13 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         setupKnob(ui->count, 1.0, (double)SlotMachineAudioProcessorEditor::kMaxBeatsPerSlot, 1.0, "Beats/Cycle (Count)");
         ui->count.setNumDecimalPlacesToDisplay(0);
 
-        // Disable tooltips for the count slider and its associated text box.
+        // Disable tooltips for the count slider and its child components (text box, etc.).
         ui->count.setTooltip({});
-        if (auto* countTextBox = ui->count.getTextBox())
-            countTextBox->setTooltip({});
+        for (int childIndex = 0; childIndex < ui->count.getNumChildComponents(); ++childIndex)
+        {
+            if (auto* child = ui->count.getChildComponent(childIndex))
+                child->setTooltip({});
+        }
         setupKnob(ui->rate, 0.0625, 4.00, 0.0001, "Rate", 4);
         setupKnob(ui->gain, 0.0, 100.0, 0.1, "Gain");
         setupKnob(ui->decay, 1.0, 100.0, 0.1, "Decay (ms)");
