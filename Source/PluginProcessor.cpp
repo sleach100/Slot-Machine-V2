@@ -856,8 +856,21 @@ juce::AudioProcessorEditor* SlotMachineAudioProcessor::createEditor()
 void SlotMachineAudioProcessor::initialiseStateForFirstEditor()
 {
     for (auto* param : getParameters())
+    {
+        if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(param))
+        {
+            if (intParam->paramID.endsWith("BeatMask"))
+            {
+                const int32_t defaultValue = (int32_t)defaultBeatMaskForCount(kCountModeBaseBeats);
+                *intParam = defaultValue;
+                apvts.state.setProperty(intParam->paramID, defaultValue, nullptr);
+                continue;
+            }
+        }
+
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(param))
             ranged->setValueNotifyingHost(ranged->getDefaultValue());
+    }
 
     clearAllSlots();
     resetAllPhases(false);
@@ -1053,6 +1066,7 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
 
         const juce::String rateId = "slot" + juce::String(i + 1) + "_Rate";
         const juce::String countId = "slot" + juce::String(i + 1) + "_Count";
+        const juce::String maskId  = slotParamId(i, "BeatMask");
 
         if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
         {
@@ -1083,6 +1097,33 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
                 countParam->endChangeGesture();
             }
         }
+
+        if (!apvts.state.hasProperty(maskId))
+        {
+            int countForMask = kCountModeBaseBeats;
+
+            if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
+            {
+                countForMask = juce::jlimit(1, 64, countParam->get());
+            }
+            else if (apvts.state.hasProperty(countId))
+            {
+                float storedCount = (float)kCountModeBaseBeats;
+                if (varToFloat(apvts.state.getProperty(countId), storedCount))
+                    countForMask = juce::jlimit(1, 64, (int)std::round(storedCount));
+            }
+
+            const uint32_t defaultMask = defaultBeatMaskForCount(countForMask);
+            const int32_t signedMask = (int32_t)defaultMask;
+            apvts.state.setProperty(maskId, signedMask, nullptr);
+
+            if (auto* maskParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(maskId)))
+            {
+                maskParam->beginChangeGesture();
+                *maskParam = signedMask;
+                maskParam->endChangeGesture();
+            }
+        }
     }
 
     if (auto patterns = apvts.state.getChildWithName(kPatternsNodeId); patterns.isValid())
@@ -1095,25 +1136,41 @@ void SlotMachineAudioProcessor::upgradeLegacySlotParameters()
             {
                 const juce::String rateId = slotParamId(slot, "Rate");
                 const juce::String countId = slotParamId(slot, "Count");
+                const juce::String maskId  = slotParamId(slot, "BeatMask");
 
-                if (pattern.hasProperty(countId))
-                    continue;
+                int countForMask = kCountModeBaseBeats;
 
-                float rateValue = 1.0f;
-                const auto rateVar = pattern.getProperty(rateId);
-                varToFloat(rateVar, rateValue);
-
-                int minCount = 1;
-                int maxCount = 64;
-                if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
+                if (!pattern.hasProperty(countId))
                 {
-                    const auto& countRange = countParam->getNormalisableRange();
-                    minCount = (int)std::round(countRange.start);
-                    maxCount = (int)std::round(countRange.end);
+                    float rateValue = 1.0f;
+                    const auto rateVar = pattern.getProperty(rateId);
+                    varToFloat(rateVar, rateValue);
+
+                    int minCount = 1;
+                    int maxCount = 64;
+                    if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countId)))
+                    {
+                        const auto& countRange = countParam->getNormalisableRange();
+                        minCount = (int)std::round(countRange.start);
+                        maxCount = (int)std::round(countRange.end);
+                    }
+
+                    const int derivedCount = deriveCountFromRate(rateValue, minCount, maxCount);
+                    pattern.setProperty(countId, derivedCount, nullptr);
+                    countForMask = derivedCount;
+                }
+                else
+                {
+                    float storedCount = (float)kCountModeBaseBeats;
+                    if (varToFloat(pattern.getProperty(countId), storedCount))
+                        countForMask = juce::jlimit(1, 64, (int)std::round(storedCount));
                 }
 
-                const int derivedCount = deriveCountFromRate(rateValue, minCount, maxCount);
-                pattern.setProperty(countId, derivedCount, nullptr);
+                if (!pattern.hasProperty(maskId))
+                {
+                    const uint32_t defaultMask = defaultBeatMaskForCount(countForMask);
+                    pattern.setProperty(maskId, (int32_t)defaultMask, nullptr);
+                }
             }
         }
     }

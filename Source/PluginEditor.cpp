@@ -4422,10 +4422,10 @@ void SlotMachineAudioProcessorEditor::setSlotBeatMask(int slotIndex, uint32_t ne
             return;
 
         const int32_t signedValue = (int32_t)sanitised;
-        const float normalised = intParam->convertTo0to1((float)signedValue);
         intParam->beginChangeGesture();
-        intParam->setValueNotifyingHost(normalised);
+        *intParam = signedValue;
         intParam->endChangeGesture();
+        apvts.state.setProperty(paramId, signedValue, nullptr);
     }
 }
 
@@ -4446,10 +4446,10 @@ void SlotMachineAudioProcessorEditor::syncBeatMaskForCount(int slotIndex, int ne
             return;
 
         const int32_t signedValue = (int32_t)updated;
-        const float normalised = intParam->convertTo0to1((float)signedValue);
         intParam->beginChangeGesture();
-        intParam->setValueNotifyingHost(normalised);
+        *intParam = signedValue;
         intParam->endChangeGesture();
+        apvts.state.setProperty(paramId, signedValue, nullptr);
     }
 }
 
