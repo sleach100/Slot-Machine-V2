@@ -616,7 +616,7 @@ SlotMachineAudioProcessorEditor::RenamePatternComponent::RenamePatternComponent(
       onResult(std::move(handler))
 {
     prompt.setJustificationType(juce::Justification::centredLeft);
-    prompt.setFont(juce::Font(15.0f, juce::Font::bold));
+    prompt.setFont(createBoldFont(15.0f));
     addAndMakeVisible(prompt);
 
     editor.setSelectAllWhenFocused(true);
@@ -1781,11 +1781,11 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         ui->count.setNumDecimalPlacesToDisplay(0);
 
         // Disable tooltips for the count slider and its child components (text box, etc.).
-        ui->count.setTooltip({});
+        ui->count.setTooltip(juce::String());
         for (int childIndex = 0; childIndex < ui->count.getNumChildComponents(); ++childIndex)
         {
             if (auto* child = ui->count.getChildComponent(childIndex))
-                child->setTooltip({});
+                child->setTooltip(juce::String());
         }
         setupKnob(ui->rate, 0.0625, 4.00, 0.0001, "Rate", 4);
         setupKnob(ui->gain, 0.0, 100.0, 0.1, "Gain");
