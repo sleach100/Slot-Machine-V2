@@ -541,8 +541,11 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     for (int ch = totalIn; ch < totalOut; ++ch)
         buffer.clear(ch, 0, numSamples);
 
-    const bool run = apvts.getRawParameterValue("masterRun")->load();
-    const float masterBPM = *apvts.getRawParameterValue("masterBPM");
+    const auto* runParam = apvts.getRawParameterValue("masterRun");
+    const bool run = runParam ? (runParam->load() >= 0.5f) : false;
+
+    const auto* bpmParam = apvts.getRawParameterValue("masterBPM");
+    const float masterBPM = bpmParam ? bpmParam->load() : 120.0f;
     const double spb = (masterBPM > 0.0f ? 60.0 / (double)masterBPM : 0.0); // seconds per beat
 
     // Always emit both audio and MIDI
@@ -566,7 +569,9 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     if (run && spb > 0.0)
         masterBeatsAccum += dtSec / spb;
     const double currBeats = masterBeatsAccum;
-    const int timingMode = (int)std::round(apvts.getRawParameterValue("optTimingMode")->load());
+    int timingMode = 0;
+    if (const auto* timingParam = apvts.getRawParameterValue("optTimingMode"))
+        timingMode = (int)std::round(timingParam->load());
     const double countModeCycleBeats = (double)kCountModeBaseBeats;
 
     // --- Compute current poly-cycle (in beats), matching Export MIDI logic ---
@@ -808,7 +813,8 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
                     beatIndex += count;
                 beatIndex = juce::jlimit<int>(0, count - 1, beatIndex);
 
-                const bool allowHit = ((effectiveBeatMask >> (uint32_t)beatIndex) & 1u) != 0u;
+                const uint64_t mask64 = (uint64_t)effectiveBeatMask;
+                const bool allowHit = ((mask64 >> (uint32_t)beatIndex) & 1ull) != 0ull;
 
                 if (!allowHit)
                     continue;
@@ -1258,7 +1264,9 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
             targetSampleRate = static_cast<double>(requested);
     }
 
-    const double bpm = (double)*apvts.getRawParameterValue("masterBPM");
+    double bpm = 120.0;
+    if (const auto* bpmParam = apvts.getRawParameterValue("masterBPM"))
+        bpm = (double)bpmParam->load();
     if (bpm <= 0.0)
     {
         errorMessage = "Master BPM must be greater than zero.";
@@ -1491,7 +1499,8 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
                 for (int hit = 0; hit < hitsPerCycle; ++hit)
                 {
                     const int beatIndex = juce::jlimit<int>(0, slot.count - 1, hit);
-                    const bool allowHit = ((slot.mask >> (uint32_t)beatIndex) & 1u) != 0u;
+                    const uint64_t mask64 = (uint64_t)slot.mask;
+                    const bool allowHit = ((mask64 >> (uint32_t)beatIndex) & 1ull) != 0ull;
                     if (!allowHit)
                         continue;
 
