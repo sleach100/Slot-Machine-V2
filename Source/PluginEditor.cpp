@@ -2,6 +2,7 @@
 #include "PluginProcessor.h"
 #include "PolyrhythmVizComponent.h"
 #include "BeatsQuickPickGrid.h"
+#include "CountBeatMaskGrid.h"
 
 #include <memory>
 #include <cmath>
@@ -1893,6 +1894,8 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
     if (eventComponent == nullptr)
         return;
 
+    const int timingMode = Opt::getInt(apvts, "optTimingMode", 0);
+
     for (int i = 0; i < kNumSlots; ++i)
     {
         if (auto* slot = slots[(size_t)i].get())
@@ -1917,29 +1920,60 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
                 return false;
             };
 
-            if (hitBeatsControl && isCountTextBoxComponent(eventComponent) && e.mods.isLeftButtonDown())
+            if (hitBeatsControl && isCountTextBoxComponent(eventComponent))
             {
-                const int currentValue = juce::roundToInt(beatsSlider.getValue());
-
-                BeatsQuickPickGrid::Options opts;
-                opts.maxBeat = slot->beatsQuickPickExpanded ? kMaxBeatsPerSlot : kBeatsQuickPickDefaultMax;
-                if (currentValue > kBeatsQuickPickDefaultMax)
-                    opts.maxBeat = kMaxBeatsPerSlot;
-
-                slot->beatsQuickPickExpanded = opts.maxBeat > kBeatsQuickPickDefaultMax;
-
-                auto pickHandler = [slot](int picked)
+                if (e.mods.isPopupMenu())
                 {
-                    slot->beatsQuickPickExpanded = picked > kBeatsQuickPickDefaultMax;
-                    slot->count.setValue(picked, juce::sendNotificationSync);
-                };
+                    if (timingMode == 1)
+                    {
+                        const int beats = juce::jlimit(1, kMaxBeatsPerSlot, juce::roundToInt(beatsSlider.getValue()));
 
-                auto grid = std::make_unique<BeatsQuickPickGrid>(opts, std::move(pickHandler), currentValue);
+                        CountBeatMaskGrid::Options maskOptions;
+                        maskOptions.beats = beats;
+                        maskOptions.columns = juce::jlimit(1, 8, (int)std::ceil(std::sqrt((double)beats)));
 
-                const auto screenPos = e.getScreenPosition().roundToInt();
-                const auto calloutBounds = juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1);
-                juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
-                return;
+                        const uint64_t activeMask = processor.getSlotCountMask(i) & SlotMachineAudioProcessor::maskForBeats(beats);
+
+                        auto maskHandler = [this, slotIndex = i, beats](uint64_t updatedMask)
+                        {
+                            const uint64_t active = SlotMachineAudioProcessor::maskForBeats(beats);
+                            const uint64_t preserved = processor.getSlotCountMask(slotIndex) & ~active;
+                            processor.setSlotCountMask(slotIndex, preserved | (updatedMask & active));
+                        };
+
+                        auto grid = std::make_unique<CountBeatMaskGrid>(maskOptions, activeMask, std::move(maskHandler));
+
+                        const auto screenPos = e.getScreenPosition().roundToInt();
+                        const auto calloutBounds = juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1);
+                        juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
+                    }
+                    return;
+                }
+
+                if (e.mods.isLeftButtonDown())
+                {
+                    const int currentValue = juce::roundToInt(beatsSlider.getValue());
+
+                    BeatsQuickPickGrid::Options opts;
+                    opts.maxBeat = slot->beatsQuickPickExpanded ? kMaxBeatsPerSlot : kBeatsQuickPickDefaultMax;
+                    if (currentValue > kBeatsQuickPickDefaultMax)
+                        opts.maxBeat = kMaxBeatsPerSlot;
+
+                    slot->beatsQuickPickExpanded = opts.maxBeat > kBeatsQuickPickDefaultMax;
+
+                    auto pickHandler = [slot](int picked)
+                    {
+                        slot->beatsQuickPickExpanded = picked > kBeatsQuickPickDefaultMax;
+                        slot->count.setValue(picked, juce::sendNotificationSync);
+                    };
+
+                    auto grid = std::make_unique<BeatsQuickPickGrid>(opts, std::move(pickHandler), currentValue);
+
+                    const auto screenPos = e.getScreenPosition().roundToInt();
+                    const auto calloutBounds = juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1);
+                    juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
+                    return;
+                }
             }
         }
     }
