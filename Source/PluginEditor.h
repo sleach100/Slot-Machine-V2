@@ -7,6 +7,7 @@
 #include <deque>
 #include <vector>
 #include <utility>
+#include <cstdint>
 #include "PluginProcessor.h"
 
 class PolyrhythmVizComponent;
@@ -254,6 +255,7 @@ private:
 
         bool showRateLabel = true;
         bool showCountLabel = false;
+        int  lastMaskCount = SlotMachineAudioProcessor::kCountModeBaseBeats;
     };
 
     static constexpr int kNumSlots = SlotMachineAudioProcessor::kNumSlots;
@@ -336,6 +338,10 @@ private:
     void refreshSlotTimingModeUI();
     void refreshSlotTimingModeUI(int timingMode);
     void parameterChanged(const juce::String& parameterID, float newValue) override;
+    uint32_t getSlotBeatMask(int slotIndex) const;
+    void setSlotBeatMask(int slotIndex, uint32_t newMask);
+    void syncBeatMaskForCount(int slotIndex, int newCount, int previousCount);
+    static uint32_t maskAllBeatsForCount(int count);
 
     // Refs
     SlotMachineAudioProcessor& processor;

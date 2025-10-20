@@ -53,6 +53,20 @@ namespace
 
     constexpr int kBeatsQuickPickDefaultMax = 32;
 
+    juce::String slotParamId(int slotIndex, const juce::String& suffix)
+    {
+        return "slot" + juce::String(slotIndex + 1) + "_" + suffix;
+    }
+
+    uint32_t maskBitsForCount(int count)
+    {
+        if (count <= 0)
+            return 0u;
+        if (count >= 32)
+            return 0xFFFFFFFFu;
+        return (uint32_t)((1u << count) - 1u);
+    }
+
     constexpr auto kStandaloneWindowTitle = "";// This sets the text in the title bar of the standalone app
     constexpr int kMasterControlsYOffset = 70;
     constexpr int kMasterLabelExtraYOffset = 35;
@@ -1819,10 +1833,15 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         if (existing.isNotEmpty())
             ui->fileLabel.setText(juce::File(existing).getFileName(), juce::dontSendNotification);
 
+        ui->lastMaskCount = juce::roundToInt(ui->count.getValue());
+
         slots[(size_t)i] = std::move(ui);
 
         if (auto* slotPtr = slots[(size_t)i].get())
+        {
+            slotPtr->lastMaskCount = juce::roundToInt(slotPtr->count.getValue());
             initialiseSlotTimingPair(i, *slotPtr);
+        }
     }
 
     refreshSlotTimingModeUI(initialTimingMode);
@@ -1917,29 +1936,65 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
                 return false;
             };
 
-            if (hitBeatsControl && isCountTextBoxComponent(eventComponent) && e.mods.isLeftButtonDown())
+            if (hitBeatsControl && isCountTextBoxComponent(eventComponent))
             {
-                const int currentValue = juce::roundToInt(beatsSlider.getValue());
-
-                BeatsQuickPickGrid::Options opts;
-                opts.maxBeat = slot->beatsQuickPickExpanded ? kMaxBeatsPerSlot : kBeatsQuickPickDefaultMax;
-                if (currentValue > kBeatsQuickPickDefaultMax)
-                    opts.maxBeat = kMaxBeatsPerSlot;
-
-                slot->beatsQuickPickExpanded = opts.maxBeat > kBeatsQuickPickDefaultMax;
-
-                auto pickHandler = [slot](int picked)
+                if (e.mods.isPopupMenu())
                 {
-                    slot->beatsQuickPickExpanded = picked > kBeatsQuickPickDefaultMax;
-                    slot->count.setValue(picked, juce::sendNotificationSync);
-                };
+                    const int timingMode = Opt::getInt(apvts, "optTimingMode", 0);
+                    if (timingMode != 1)
+                        return;
 
-                auto grid = std::make_unique<BeatsQuickPickGrid>(opts, std::move(pickHandler), currentValue);
+                    const int currentCount = juce::jmax(1, juce::roundToInt(beatsSlider.getValue()));
+                    BeatsQuickPickGrid::Options maskOpts;
+                    maskOpts.maxBeat = currentCount;
+                    maskOpts.showExpandToggle = false;
 
-                const auto screenPos = e.getScreenPosition().roundToInt();
-                const auto calloutBounds = juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1);
-                juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
-                return;
+                    const uint32_t currentMask = getSlotBeatMask(i) & maskAllBeatsForCount(currentCount);
+                    auto confirmMask = [this, slotIndex = i](uint32_t newMask)
+                    {
+                        setSlotBeatMask(slotIndex, newMask);
+                    };
+
+                    auto grid = std::make_unique<BeatsQuickPickGrid>(maskOpts, std::move(confirmMask), currentMask);
+
+                    juce::Component* textBox = beatsSlider.getCurrentTextBox();
+                    juce::Rectangle<int> calloutBounds;
+                    if (textBox != nullptr)
+                        calloutBounds = textBox->getScreenBounds();
+                    else
+                    {
+                        const auto screenPos = e.getScreenPosition().roundToInt();
+                        calloutBounds = { screenPos.x, screenPos.y, 1, 1 };
+                    }
+
+                    juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
+                    return;
+                }
+
+                if (e.mods.isLeftButtonDown())
+                {
+                    const int currentValue = juce::roundToInt(beatsSlider.getValue());
+
+                    BeatsQuickPickGrid::Options opts;
+                    opts.maxBeat = slot->beatsQuickPickExpanded ? kMaxBeatsPerSlot : kBeatsQuickPickDefaultMax;
+                    if (currentValue > kBeatsQuickPickDefaultMax)
+                        opts.maxBeat = kMaxBeatsPerSlot;
+
+                    slot->beatsQuickPickExpanded = opts.maxBeat > kBeatsQuickPickDefaultMax;
+
+                    auto pickHandler = [slot](int picked)
+                    {
+                        slot->beatsQuickPickExpanded = picked > kBeatsQuickPickDefaultMax;
+                        slot->count.setValue(picked, juce::sendNotificationSync);
+                    };
+
+                    auto grid = std::make_unique<BeatsQuickPickGrid>(opts, std::move(pickHandler), currentValue);
+
+                    const auto screenPos = e.getScreenPosition().roundToInt();
+                    const auto calloutBounds = juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1);
+                    juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
+                    return;
+                }
             }
         }
     }
@@ -4177,6 +4232,20 @@ void SlotMachineAudioProcessorEditor::timerCallback()
 
         ui->count.setAlpha(countEnabled ? 1.0f : 0.35f);
         ui->rate.setAlpha(rateEnabled ? 1.0f : 0.35f);
+
+        const int countValue = juce::roundToInt(ui->count.getValue());
+        if (timingMode == 1)
+        {
+            if (countValue != ui->lastMaskCount)
+            {
+                syncBeatMaskForCount(i, countValue, ui->lastMaskCount);
+                ui->lastMaskCount = countValue;
+            }
+        }
+        else
+        {
+            ui->lastMaskCount = countValue;
+        }
     }
 
     repaint();
@@ -4209,6 +4278,11 @@ void SlotMachineAudioProcessorEditor::handleSlotCountChanged(int slotIndex, Slot
     if (ui.syncingFromRate) return;
 
     const int   countValue   = (int) std::round(ui.count.getValue());
+    if (countValue != ui.lastMaskCount)
+    {
+        syncBeatMaskForCount(slotIndex, countValue, ui.lastMaskCount);
+        ui.lastMaskCount = countValue;
+    }
     const float desiredRate  = convertCountToRate(countValue);
     const juce::String paramId = "slot" + juce::String(slotIndex + 1) + "_Rate";
 
@@ -4261,6 +4335,76 @@ void SlotMachineAudioProcessorEditor::parameterChanged(const juce::String& param
             if (safe != nullptr)
                 safe->refreshSlotTimingModeUI();
         });
+    }
+}
+
+uint32_t SlotMachineAudioProcessorEditor::maskAllBeatsForCount(int count)
+{
+    return maskBitsForCount(count);
+}
+
+uint32_t SlotMachineAudioProcessorEditor::getSlotBeatMask(int slotIndex) const
+{
+    const juce::String paramId = slotParamId(slotIndex, "BeatMask");
+    if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(paramId)))
+    {
+        const int32_t signedValue = (int32_t)intParam->get();
+        return (uint32_t)signedValue;
+    }
+
+    int count = SlotMachineAudioProcessor::kCountModeBaseBeats;
+    if (juce::isPositiveAndBelow(slotIndex, (int)slots.size()))
+        if (auto* slot = slots[(size_t)slotIndex].get())
+            count = juce::roundToInt(slot->count.getValue());
+
+    return maskAllBeatsForCount(count);
+}
+
+void SlotMachineAudioProcessorEditor::setSlotBeatMask(int slotIndex, uint32_t newMask)
+{
+    const juce::String paramId = slotParamId(slotIndex, "BeatMask");
+    if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(paramId)))
+    {
+        int count = SlotMachineAudioProcessor::kCountModeBaseBeats;
+        if (juce::isPositiveAndBelow(slotIndex, (int)slots.size()))
+            if (auto* slot = slots[(size_t)slotIndex].get())
+                count = juce::roundToInt(slot->count.getValue());
+
+        const uint32_t allowed = maskAllBeatsForCount(count);
+        const uint32_t sanitised = newMask & allowed;
+        const uint32_t current = (uint32_t)(int32_t)intParam->get();
+        if (sanitised == current)
+            return;
+
+        const int32_t signedValue = (int32_t)sanitised;
+        const float normalised = intParam->convertTo0to1((float)signedValue);
+        intParam->beginChangeGesture();
+        intParam->setValueNotifyingHost(normalised);
+        intParam->endChangeGesture();
+    }
+}
+
+void SlotMachineAudioProcessorEditor::syncBeatMaskForCount(int slotIndex, int newCount, int previousCount)
+{
+    const juce::String paramId = slotParamId(slotIndex, "BeatMask");
+    if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(paramId)))
+    {
+        const uint32_t current = (uint32_t)(int32_t)intParam->get();
+        const uint32_t newAllowed = maskAllBeatsForCount(newCount);
+        const uint32_t prevAllowed = maskAllBeatsForCount(previousCount);
+
+        uint32_t updated = current & newAllowed;
+        if (newCount > previousCount)
+            updated |= (newAllowed & ~prevAllowed);
+
+        if (updated == current)
+            return;
+
+        const int32_t signedValue = (int32_t)updated;
+        const float normalised = intParam->convertTo0to1((float)signedValue);
+        intParam->beginChangeGesture();
+        intParam->setValueNotifyingHost(normalised);
+        intParam->endChangeGesture();
     }
 }
 
