@@ -128,7 +128,18 @@ static uint32_t defaultBeatMaskForCount(int count)
         return 0u;
     if (count >= 32)
         return 0xFFFFFFFFu;
-    return (uint32_t)((1u << count) - 1u);
+    return (uint32_t)((1u << (uint32_t)count) - 1u);
+}
+
+static uint32_t clampBeatMaskToCount(uint32_t mask, int count)
+{
+    if (count <= 0)
+        return 0u;
+    if (count >= 32)
+        return mask;
+
+    const uint32_t validBits = (1u << (uint32_t)count) - 1u;
+    return mask & validBits;
 }
 
 static const juce::StringArray kSlotParamSuffixes{ "Mute", "Solo", "Rate", "Count", "Gain", "Pan", "Decay", "MidiChannel", "BeatMask" };
@@ -543,7 +554,8 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     bool soloMask[kNumSlots] = {};
     for (int i = 0; i < kNumSlots; ++i)
     {
-        const bool solo = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Solo")->load();
+        auto* soloParam = apvts.getRawParameterValue(slotParamId(i, "Solo"));
+        const bool solo = soloParam ? (soloParam->load() >= 0.5f) : false;
         soloMask[i] = solo;
         anySolo = anySolo || solo;
     }
@@ -565,15 +577,16 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 
     for (int i = 0; i < kNumSlots; ++i)
     {
-        const juce::String slotBase = "slot" + juce::String(i + 1) + "_";
-        const bool mute = apvts.getRawParameterValue(slotBase + "Mute")->load();
+        auto* muteParam = apvts.getRawParameterValue(slotParamId(i, "Mute"));
+        const bool mute = muteParam ? (muteParam->load() >= 0.5f) : false;
         if (mute) continue;
         if (anySolo && !soloMask[i]) continue;
         if (!slots[i].hasSample()) continue;
 
         if (timingMode == 0)
         {
-            const float rateF = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Rate");
+            auto* rateParam = apvts.getRawParameterValue(slotParamId(i, "Rate"));
+            const float rateF = rateParam ? rateParam->load() : 1.0f;
             const double rate = juce::jmax(0.0001f, rateF);
 
             int num = 0, den = 1;
@@ -615,33 +628,45 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     {
         auto& s = slots[i];
 
-        const juce::String slotBase = "slot" + juce::String(i + 1) + "_";
-        const bool mute = apvts.getRawParameterValue(slotBase + "Mute")->load();
+        auto* muteParam = apvts.getRawParameterValue(slotParamId(i, "Mute"));
+        const bool mute = muteParam ? (muteParam->load() >= 0.5f) : false;
         const bool solo = soloMask[i];
 
-        const float rate = *apvts.getRawParameterValue(slotBase + "Rate");
+        auto* rateParam = apvts.getRawParameterValue(slotParamId(i, "Rate"));
+        const float rate = rateParam ? rateParam->load() : 1.0f;
+
         int count = 4;
-        if (auto* countParam = apvts.getRawParameterValue(slotBase + "Count"))
-            count = juce::jlimit(1, 64, (int)std::round(countParam->load()));
-        const float gainPercent = *apvts.getRawParameterValue(slotBase + "Gain");
+        if (auto* countParam = apvts.getRawParameterValue(slotParamId(i, "Count")))
+        {
+            const int roundedCount = (int)std::round(countParam->load());
+            count = juce::jlimit<int>(1, 64, roundedCount);
+        }
+
+        auto* gainParam = apvts.getRawParameterValue(slotParamId(i, "Gain"));
+        const float gainPercent = gainParam ? gainParam->load() : 80.0f;
         const float gain = gainPercent * 0.01f;
-        const float pan = *apvts.getRawParameterValue(slotBase + "Pan");
-        const float decayUi = *apvts.getRawParameterValue(slotBase + "Decay");
+
+        auto* panParam = apvts.getRawParameterValue(slotParamId(i, "Pan"));
+        const float pan = panParam ? panParam->load() : 0.0f;
+
+        auto* decayParam = apvts.getRawParameterValue(slotParamId(i, "Decay"));
+        const float decayUi = decayParam ? decayParam->load() : 100.0f;
         const float decayMs = decayUiToMilliseconds(decayUi);
-        const auto* midiChoiceRaw = apvts.getRawParameterValue(slotBase + "MidiChannel");
+
+        const auto* midiChoiceRaw = apvts.getRawParameterValue(slotParamId(i, "MidiChannel"));
         int midiChoiceIndex = i;
         if (midiChoiceRaw != nullptr)
             midiChoiceIndex = juce::jlimit(0, 15, (int)std::round(midiChoiceRaw->load()));
 
         const int midiChannel = juce::jlimit(1, 16, midiChoiceIndex + 1);
 
-        uint32_t beatMaskValue = defaultBeatMaskForCount(count);
-        if (auto* maskParam = apvts.getRawParameterValue(slotBase + "BeatMask"))
+        uint32_t maskValue = defaultBeatMaskForCount(count);
+        if (auto* maskParam = apvts.getRawParameterValue(slotParamId(i, "BeatMask")))
         {
             const int32_t signedValue = (int32_t)juce::roundToInt(maskParam->load());
-            beatMaskValue = (uint32_t)signedValue;
+            maskValue = (uint32_t)signedValue;
         }
-        const uint32_t effectiveBeatMask = beatMaskValue & defaultBeatMaskForCount(count);
+        const uint32_t effectiveBeatMask = clampBeatMaskToCount(maskValue, count);
        
 
         s.setPan(pan);
@@ -775,17 +800,15 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
                 if (hitBeat >= currBeats)
                     break;
 
-                int beatIndex = 0;
-                if (count > 0)
-                {
-                    beatIndex = n % count;
-                    if (beatIndex < 0)
-                        beatIndex += count;
-                }
+                if (count <= 0)
+                    continue;
 
-                bool allowHit = true;
-                if (beatIndex < 32)
-                    allowHit = ((effectiveBeatMask >> beatIndex) & 1u) != 0u;
+                int beatIndex = n % count;
+                if (beatIndex < 0)
+                    beatIndex += count;
+                beatIndex = juce::jlimit<int>(0, count - 1, beatIndex);
+
+                const bool allowHit = ((effectiveBeatMask >> (uint32_t)beatIndex) & 1u) != 0u;
 
                 if (!allowHit)
                     continue;
@@ -1172,7 +1195,8 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
     bool anySolo = false;
     for (int i = 0; i < kNumSlots; ++i)
     {
-        const bool solo = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Solo")->load();
+        auto* soloParam = apvts.getRawParameterValue(slotParamId(i, "Solo"));
+        const bool solo = soloParam ? (soloParam->load() >= 0.5f) : false;
         soloMask[(size_t)i] = solo;
         anySolo = anySolo || solo;
     }
@@ -1203,7 +1227,8 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
 
     for (int i = 0; i < kNumSlots; ++i)
     {
-        const bool mute = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Mute")->load();
+        auto* muteParam = apvts.getRawParameterValue(slotParamId(i, "Mute"));
+        const bool mute = muteParam ? (muteParam->load() >= 0.5f) : false;
         if (mute)
             continue;
 
@@ -1230,13 +1255,24 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
             continue;
         }
 
-        const float rateParam = *apvts.getRawParameterValue(slotBase + "Rate");
+        auto* rateParam = apvts.getRawParameterValue(slotParamId(i, "Rate"));
+        const float rateValue = rateParam ? rateParam->load() : 1.0f;
+
         int count = 4;
-        if (auto* countParam = apvts.getRawParameterValue(slotBase + "Count"))
-            count = juce::jlimit(1, 64, (int)std::round(countParam->load()));
-        const float gainPercent = *apvts.getRawParameterValue(slotBase + "Gain");
-        const float pan = *apvts.getRawParameterValue(slotBase + "Pan");
-        const float decayUi = *apvts.getRawParameterValue(slotBase + "Decay");
+        if (auto* countParam = apvts.getRawParameterValue(slotParamId(i, "Count")))
+        {
+            const int roundedCount = (int)std::round(countParam->load());
+            count = juce::jlimit<int>(1, 64, roundedCount);
+        }
+
+        auto* gainParam = apvts.getRawParameterValue(slotParamId(i, "Gain"));
+        const float gainPercent = gainParam ? gainParam->load() : 80.0f;
+
+        auto* panParam = apvts.getRawParameterValue(slotParamId(i, "Pan"));
+        const float pan = panParam ? panParam->load() : 0.0f;
+
+        auto* decayParam = apvts.getRawParameterValue(slotParamId(i, "Decay"));
+        const float decayUi = decayParam ? decayParam->load() : 100.0f;
 
         voice.setPan(pan);
         voice.setDecayMs(decayUiToMilliseconds(decayUi));
@@ -1247,7 +1283,7 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
 
         if (timingMode == 0)
         {
-            const double rate = juce::jmax(0.0001f, rateParam);
+            const double rate = juce::jmax(0.0001f, rateValue);
             int num = 0, den = 1;
             approximateRational(rate, maxDen, num, den);
             const int g = igcd(num, den);
@@ -1272,12 +1308,12 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
         }
 
         uint32_t maskValue = defaultBeatMaskForCount(count);
-        if (auto* maskParam = apvts.getRawParameterValue(slotBase + "BeatMask"))
+        if (auto* maskParam = apvts.getRawParameterValue(slotParamId(i, "BeatMask")))
         {
             const int32_t signedValue = (int32_t)juce::roundToInt(maskParam->load());
             maskValue = (uint32_t)signedValue;
         }
-        offline.mask = maskValue & defaultBeatMaskForCount(count);
+        offline.mask = clampBeatMaskToCount(maskValue, count);
 
         slotsToRender.push_back(std::move(offline));
     }
@@ -1380,9 +1416,8 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
 
                 for (int hit = 0; hit < hitsPerCycle; ++hit)
                 {
-                    bool allowHit = true;
-                    if (hit < 32)
-                        allowHit = ((slot.mask >> hit) & 1u) != 0u;
+                    const int beatIndex = juce::jlimit<int>(0, slot.count - 1, hit);
+                    const bool allowHit = ((slot.mask >> (uint32_t)beatIndex) & 1u) != 0u;
                     if (!allowHit)
                         continue;
 

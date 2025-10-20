@@ -64,7 +64,7 @@ namespace
             return 0u;
         if (count >= 32)
             return 0xFFFFFFFFu;
-        return (uint32_t)((1u << count) - 1u);
+        return (uint32_t)((1u << (uint32_t)count) - 1u);
     }
 
     constexpr auto kStandaloneWindowTitle = "";// This sets the text in the title bar of the standalone app
@@ -1959,11 +1959,54 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 
                     auto grid = std::make_unique<BeatsQuickPickGrid>(maskOpts, std::move(confirmMask), currentMask);
 
-                    juce::Component* textBox = beatsSlider.getCurrentTextBox();
                     juce::Rectangle<int> calloutBounds;
-                    if (textBox != nullptr)
-                        calloutBounds = textBox->getScreenBounds();
-                    else
+                    {
+                        const auto tbPos = beatsSlider.getTextBoxPosition();
+                        const int tbW = beatsSlider.getTextBoxWidth();
+                        const int tbH = beatsSlider.getTextBoxHeight();
+                        auto localBounds = beatsSlider.getLocalBounds();
+                        juce::Rectangle<int> tbRect;
+
+                        switch (tbPos)
+                        {
+                            case juce::Slider::TextBoxBelow:
+                                tbRect = { localBounds.getCentreX() - tbW / 2,
+                                           localBounds.getBottom() - tbH,
+                                           tbW,
+                                           tbH };
+                                break;
+                            case juce::Slider::TextBoxAbove:
+                                tbRect = { localBounds.getCentreX() - tbW / 2,
+                                           localBounds.getY(),
+                                           tbW,
+                                           tbH };
+                                break;
+                            case juce::Slider::TextBoxLeft:
+                                tbRect = { localBounds.getX(),
+                                           localBounds.getCentreY() - tbH / 2,
+                                           tbW,
+                                           tbH };
+                                break;
+                            case juce::Slider::TextBoxRight:
+                                tbRect = { localBounds.getRight() - tbW,
+                                           localBounds.getCentreY() - tbH / 2,
+                                           tbW,
+                                           tbH };
+                                break;
+                            case juce::Slider::NoTextBox:
+                            default:
+                                tbRect = { localBounds.getCentreX(), localBounds.getCentreY(), 1, 1 };
+                                break;
+                        }
+
+                        if (tbRect.getWidth() > 0 && tbRect.getHeight() > 0)
+                        {
+                            const auto screenTopLeft = beatsSlider.localPointToGlobal(tbRect.getTopLeft());
+                            calloutBounds = { screenTopLeft.x, screenTopLeft.y, tbRect.getWidth(), tbRect.getHeight() };
+                        }
+                    }
+
+                    if (calloutBounds.isEmpty())
                     {
                         const auto screenPos = e.getScreenPosition().roundToInt();
                         calloutBounds = { screenPos.x, screenPos.y, 1, 1 };
