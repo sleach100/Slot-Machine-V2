@@ -1780,13 +1780,8 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         setupKnob(ui->count, 1.0, (double)SlotMachineAudioProcessorEditor::kMaxBeatsPerSlot, 1.0, "Beats/Cycle (Count)");
         ui->count.setNumDecimalPlacesToDisplay(0);
 
-        // Disable tooltips for the count slider and its child components (text box, etc.).
-        ui->count.setTooltip(juce::String());
-        for (int childIndex = 0; childIndex < ui->count.getNumChildComponents(); ++childIndex)
-        {
-            if (auto* child = ui->count.getChildComponent(childIndex))
-                child->setTooltip(juce::String());
-        }
+        // Disable tooltips for the count slider itself.
+        ui->count.setTooltip({});
         setupKnob(ui->rate, 0.0625, 4.00, 0.0001, "Rate", 4);
         setupKnob(ui->gain, 0.0, 100.0, 0.1, "Gain");
         setupKnob(ui->decay, 1.0, 100.0, 0.1, "Decay (ms)");
@@ -1937,7 +1932,8 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 
                         CountBeatMaskGrid::Options maskOptions;
                         maskOptions.beats = beats;
-                        maskOptions.columns = juce::jlimit(1, 8, (int)std::ceil(std::sqrt((double)beats)));
+                        const double idealColumns = std::ceil(std::sqrt((double)beats));
+                        maskOptions.columns = juce::jlimit(1, 8, juce::roundToInt(idealColumns));
 
                         const uint64_t activeMask = processor.getSlotCountMask(i) & SlotMachineAudioProcessor::maskForBeats(beats);
 
@@ -2262,7 +2258,7 @@ void SlotMachineAudioProcessorEditor::resized()
         masterBPM.setBounds(sliderBounds);
 
         const auto textBoxBottom = sliderBounds.getY() + masterBPM.getTextBoxHeight();
-        const auto labelHeight = (int)std::ceil(masterLabel.getFont().getHeight());
+        const int labelHeight = juce::roundToInt(std::ceil((double)masterLabel.getFont().getHeight()));
         const auto labelOffset = 20;
 
         labelBounds.setHeight(labelHeight);

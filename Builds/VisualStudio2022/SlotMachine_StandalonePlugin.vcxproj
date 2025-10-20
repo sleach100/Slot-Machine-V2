@@ -94,6 +94,7 @@
       <ProgramDatabaseFile>$(IntDir)\SlotMachine.pdb</ProgramDatabaseFile>
       <SubSystem>Windows</SubSystem>
       <LargeAddressAware>true</LargeAddressAware>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(Platform)\$(Configuration)\Shared Code;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>SlotMachine.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Bscmake>
@@ -143,6 +144,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(Platform)\$(Configuration)\Shared Code;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>SlotMachine.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Bscmake>
