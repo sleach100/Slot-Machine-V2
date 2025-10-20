@@ -137,7 +137,18 @@ void BeatsQuickPickGrid::resized()
     {
         const int totalWidth = cols * (bw + gap) + gap;
         const int rowWidth = totalWidth - 2 * gap;
-        juce::Rectangle<int> rowArea(gap, y + gap, rowWidth, bh);
+
+        int buttonsBottom = gap;
+        if (buttons.size() > 0)
+        {
+            if (col == 0)
+                buttonsBottom = y - gap; // y already advanced past final row
+            else
+                buttonsBottom = y + bh;   // y still at top of final row
+        }
+
+        const int controlsTop = buttonsBottom + gap;
+        juce::Rectangle<int> rowArea(gap, controlsTop, rowWidth, bh);
         const int buttonGap = juce::jmax(4, gap);
         const int halfWidth = juce::jmax(40, (rowArea.getWidth() - buttonGap) / 2);
         auto okArea = rowArea.removeFromLeft(halfWidth);
@@ -147,8 +158,8 @@ void BeatsQuickPickGrid::resized()
         okButton.setBounds(okArea);
         cancelButton.setBounds(cancelArea);
 
-        y = cancelArea.getBottom() + gap;
-        setSize(totalWidth, y + gap);
+        const int totalHeight = cancelArea.getBottom() + gap;
+        setSize(totalWidth, totalHeight + gap);
         return;
     }
 
