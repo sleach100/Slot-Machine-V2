@@ -731,10 +731,11 @@ void SlotMachineAudioProcessorEditor::RenamePatternComponent::commit(bool accept
 // ===== Font helpers =====
 static juce::Font createBoldFont(float size)
 {
-    juce::Font f;
-    f.setHeight(size);
-    f.setBold(true);
-    return f;
+    juce::Label dummy;
+    auto font = dummy.getFont();
+    font.setHeight(size);
+    font.setBold(true);
+    return font;
 }
 
 // ===== Knob helper =====
