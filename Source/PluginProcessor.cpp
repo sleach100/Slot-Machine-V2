@@ -934,10 +934,27 @@ void SlotMachineAudioProcessor::setStateInformation(const void* data, int sizeIn
         {
             clearSlot(i);
 
-            const auto base = juce::String("slot") + juce::String(i + 1) + "_";
             for (auto& suffix : kSlotParamSuffixes)
-                if (auto* param = dynamic_cast<juce::RangedAudioParameter*>(apvts.getParameter(base + suffix)))
+            {
+                const juce::String paramId = slotParamId(i, suffix);
+
+                if (suffix == "BeatMask")
+                {
+                    if (auto* maskParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(paramId)))
+                    {
+                        const int32_t defaultMask = (int32_t)defaultBeatMaskForCount(kCountModeBaseBeats);
+                        maskParam->beginChangeGesture();
+                        *maskParam = defaultMask;
+                        maskParam->endChangeGesture();
+                        apvts.state.setProperty(paramId, defaultMask, nullptr);
+                    }
+
+                    continue;
+                }
+
+                if (auto* param = dynamic_cast<juce::RangedAudioParameter*>(apvts.getParameter(paramId)))
                     param->setValueNotifyingHost(param->getDefaultValue());
+            }
         }
 
         if (auto patterns = apvts.state.getChildWithName(kPatternsNodeId); patterns.isValid())
@@ -1670,9 +1687,17 @@ juce::ValueTree SlotMachineAudioProcessor::createDefaultPatternTree(const juce::
                     }
                     else if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(parameter))
                     {
-                        const float defaultNormalised = ranged->getDefaultValue();
-                        const int defaultValue = (int)std::round(intParam->convertFrom0to1(defaultNormalised));
-                        pattern.setProperty(paramId, defaultValue, nullptr);
+                        if (suffix == "BeatMask")
+                        {
+                            const int32_t defaultMask = (int32_t)defaultBeatMaskForCount(kCountModeBaseBeats);
+                            pattern.setProperty(paramId, defaultMask, nullptr);
+                        }
+                        else
+                        {
+                            const float defaultNormalised = ranged->getDefaultValue();
+                            const int defaultValue = (int)std::round(intParam->convertFrom0to1(defaultNormalised));
+                            pattern.setProperty(paramId, defaultValue, nullptr);
+                        }
                     }
                     else if (auto* floatParam = dynamic_cast<juce::AudioParameterFloat*>(parameter))
                     {
@@ -1794,15 +1819,38 @@ void SlotMachineAudioProcessor::applyPatternTree(const juce::ValueTree& pattern,
             }
             else if (auto* intParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(paramId)))
             {
-                const int current = intParam->get();
-                int target = valueVar.isVoid() ? current : (int)valueVar;
-                const auto range = intParam->getNormalisableRange();
-                const int minValue = (int)std::round(range.start);
-                const int maxValue = (int)std::round(range.end);
-                target = juce::jlimit(minValue, maxValue, target);
-                intParam->beginChangeGesture();
-                intParam->setValueNotifyingHost(intParam->convertTo0to1((float)target));
-                intParam->endChangeGesture();
+                if (suffix == "BeatMask")
+                {
+                    const int current = intParam->get();
+                    const int rawTarget = valueVar.isVoid() ? current : (int)valueVar;
+
+                    int countForMask = kCountModeBaseBeats;
+                    if (auto* countParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(slotParamId(slot, "Count"))))
+                        countForMask = juce::jlimit(1, 64, countParam->get());
+
+                    const uint32_t sanitised = clampBeatMaskToCount((uint32_t)(int32_t)rawTarget, countForMask);
+                    const int32_t signedMask = (int32_t)sanitised;
+
+                    if (signedMask == current)
+                        continue;
+
+                    intParam->beginChangeGesture();
+                    *intParam = signedMask;
+                    intParam->endChangeGesture();
+                    apvts.state.setProperty(paramId, signedMask, nullptr);
+                }
+                else
+                {
+                    const int current = intParam->get();
+                    int target = valueVar.isVoid() ? current : (int)valueVar;
+                    const auto range = intParam->getNormalisableRange();
+                    const int minValue = (int)std::round(range.start);
+                    const int maxValue = (int)std::round(range.end);
+                    target = juce::jlimit(minValue, maxValue, target);
+                    intParam->beginChangeGesture();
+                    intParam->setValueNotifyingHost(intParam->convertTo0to1((float)target));
+                    intParam->endChangeGesture();
+                }
             }
             else if (auto* floatParam = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter(paramId)))
             {
