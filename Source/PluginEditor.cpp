@@ -4789,7 +4789,8 @@ void SlotMachineAudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
                     if (eventComponent == &ui->fileBtn || ui->fileBtn.isParentOf(eventComponent))
                     {
                         openEmbeddedSampleSelectorForSlot(i, e);
-                        e.consume();
+                        e.source.enableUnboundedMouseMovement(false);
+                        juce::ignoreUnused(e);
                         return;
                     }
                 }
