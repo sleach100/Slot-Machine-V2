@@ -25,6 +25,7 @@ namespace BinaryData
     extern const int SoloON_pngSize;
     extern const char* SlotMachineUserManual_html;
     extern const int   SlotMachineUserManual_htmlSize;
+    inline const void* getNamedResource(const char*, int& size) { size = 0; return nullptr; }
 }
 #endif
 
@@ -740,6 +741,265 @@ static juce::Slider& setupKnob(juce::Slider& s,
     return s;
 }
 
+class SlotMachineAudioProcessorEditor::EmbeddedSampleSelector : public juce::Component
+{
+public:
+    EmbeddedSampleSelector(const EmbeddedCatalog& catalog)
+    {
+        content = std::make_unique<ListContent>(*this, catalog);
+        viewport.setViewedComponent(content.get(), false);
+        viewport.setScrollBarsShown(true, false);
+        addAndMakeVisible(viewport);
+
+        const int width = 260;
+        const int maxHeight = 320;
+        const int minHeight = 140;
+        const int targetHeight = juce::jlimit(minHeight, maxHeight, content->getHeight() + 12);
+        setSize(width, targetHeight);
+    }
+
+    ~EmbeddedSampleSelector() override = default;
+
+    std::function<void(const juce::String&)> onPick;
+    std::function<void(const juce::String&)> onPreview;
+
+    void resized() override
+    {
+        viewport.setBounds(getLocalBounds());
+        if (content != nullptr)
+            content->setSize(getWidth(), content->getHeight());
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(juce::Colour(0xff1a1a1a));
+    }
+
+private:
+    class SpeakerButton : public juce::Button
+    {
+    public:
+        SpeakerButton()
+            : juce::Button("speaker")
+        {
+            setTooltip("Preview sample");
+        }
+
+        void paintButton(juce::Graphics& g, bool isOver, bool isDown) override
+        {
+            const auto area = getLocalBounds();
+            juce::Colour background = juce::Colours::black.withAlpha(0.25f);
+            if (isDown)
+                background = background.brighter(0.25f);
+            else if (isOver)
+                background = background.brighter(0.15f);
+
+            g.setColour(background);
+            g.fillRoundedRectangle(area.toFloat().reduced(4.0f), 4.0f);
+
+            const float midY = (float)area.getCentreY();
+            const float left = (float)area.getX() + 8.0f;
+            const float height = (float)area.getHeight() - 8.0f;
+            const float baseWidth = height * 0.35f;
+            const float hornWidth = height * 0.45f;
+
+            juce::Path speakerShape;
+            juce::Rectangle<float> base(left, midY - height * 0.5f, baseWidth, height);
+            speakerShape.addRectangle(base);
+
+            speakerShape.startNewSubPath(base.getRight(), midY - height * 0.6f);
+            speakerShape.lineTo(base.getRight() + hornWidth, midY - height * 0.25f);
+            speakerShape.lineTo(base.getRight() + hornWidth, midY + height * 0.25f);
+            speakerShape.lineTo(base.getRight(), midY + height * 0.6f);
+            speakerShape.closeSubPath();
+
+            juce::Colour iconColour = juce::Colours::whitesmoke;
+            if (isDown)
+                iconColour = iconColour.brighter(0.2f);
+            else if (isOver)
+                iconColour = iconColour.brighter(0.1f);
+
+            g.setColour(iconColour);
+            g.fillPath(speakerShape);
+
+            const float arcCentreX = base.getRight() + hornWidth + height * 0.05f;
+            for (int i = 0; i < 2; ++i)
+            {
+                const float radius = height * (0.45f + 0.25f * (float)i);
+                juce::Path wave;
+                wave.addCentredArc(arcCentreX, midY, radius, radius, 0.0f,
+                    -juce::MathConstants<float>::halfPi * 0.9f,
+                    juce::MathConstants<float>::halfPi * 0.9f, true);
+                const float thickness = 1.4f + 0.6f * (float)i;
+                g.strokePath(wave, juce::PathStrokeType(thickness));
+            }
+        }
+    };
+
+    class ListContent : public juce::Component
+    {
+    public:
+        ListContent(EmbeddedSampleSelector& ownerRef, const EmbeddedCatalog& catalog)
+            : owner(ownerRef)
+        {
+            for (const auto& entry : catalog)
+            {
+                Section section;
+
+                auto label = std::make_unique<juce::Label>();
+                label->setText(entry.first, juce::dontSendNotification);
+                label->setFont(createBoldFont(14.0f));
+                label->setJustificationType(juce::Justification::centredLeft);
+                label->setColour(juce::Label::textColourId, juce::Colours::whitesmoke);
+                addAndMakeVisible(label.get());
+                section.label = std::move(label);
+
+                for (const auto& sample : entry.second)
+                {
+                    auto row = std::make_unique<Row>(owner, sample);
+                    addAndMakeVisible(row.get());
+                    section.rows.push_back(std::move(row));
+                }
+
+                sections.push_back(std::move(section));
+            }
+
+            updateContentSize();
+        }
+
+        void resized() override
+        {
+            const int width = getWidth();
+            int y = 0;
+            const int labelHeight = 22;
+            const int rowHeight = 28;
+            const int sectionSpacing = 8;
+
+            for (auto& section : sections)
+            {
+                if (section.label != nullptr)
+                {
+                    section.label->setBounds(0, y, width, labelHeight);
+                    y += labelHeight;
+                }
+
+                for (auto& row : section.rows)
+                {
+                    row->setBounds(0, y, width, rowHeight);
+                    y += rowHeight;
+                }
+
+                y += sectionSpacing;
+            }
+        }
+
+    private:
+        class Row : public juce::Component
+        {
+        public:
+            Row(EmbeddedSampleSelector& ownerRef, const EmbeddedSample& sample)
+                : owner(ownerRef), resource(sample.resourceName)
+            {
+                textButton = std::make_unique<RowButton>(sample.display);
+                addAndMakeVisible(textButton.get());
+                textButton->setMouseCursor(juce::MouseCursor::PointingHandCursor);
+                textButton->onClick = [this]()
+                {
+                    if (owner.onPick)
+                        owner.onPick(resource);
+                };
+
+                speaker = std::make_unique<SpeakerButton>();
+                addAndMakeVisible(speaker.get());
+                speaker->setMouseCursor(juce::MouseCursor::PointingHandCursor);
+                speaker->onClick = [this]()
+                {
+                    if (owner.onPreview)
+                        owner.onPreview(resource);
+                };
+            }
+
+            void resized() override
+            {
+                auto bounds = getLocalBounds();
+                const int previewWidth = 36;
+                auto previewBounds = bounds.removeFromRight(previewWidth);
+                speaker->setBounds(previewBounds);
+                textButton->setBounds(bounds);
+            }
+
+        private:
+            class RowButton : public juce::Button
+            {
+            public:
+                explicit RowButton(const juce::String& text)
+                    : juce::Button(text)
+                {
+                }
+
+                void paintButton(juce::Graphics& g, bool isOver, bool isDown) override
+                {
+                    auto area = getLocalBounds();
+                    juce::Colour background = juce::Colours::black.withAlpha(0.45f);
+                    if (isDown)
+                        background = background.brighter(0.35f);
+                    else if (isOver)
+                        background = background.brighter(0.2f);
+
+                    g.setColour(background);
+                    g.fillRect(area);
+
+                    g.setColour(juce::Colours::whitesmoke);
+                    g.setFont(juce::Font(14.0f));
+                    g.drawText(getButtonText(), area.reduced(10, 0), juce::Justification::centredLeft, true);
+                }
+            };
+
+            EmbeddedSampleSelector& owner;
+            juce::String resource;
+            std::unique_ptr<RowButton> textButton;
+            std::unique_ptr<SpeakerButton> speaker;
+        };
+
+        struct Section
+        {
+            std::unique_ptr<juce::Label> label;
+            std::vector<std::unique_ptr<Row>> rows;
+        };
+
+        void updateContentSize()
+        {
+            const int labelHeight = 22;
+            const int rowHeight = 28;
+            const int sectionSpacing = 8;
+            int total = 0;
+
+            for (const auto& section : sections)
+            {
+                if (section.label != nullptr)
+                    total += labelHeight;
+
+                total += (int)section.rows.size() * rowHeight;
+                total += sectionSpacing;
+            }
+
+            if (total > 0)
+                total -= sectionSpacing;
+
+            contentHeight = total;
+            setSize(260, juce::jmax(0, contentHeight));
+            resized();
+        }
+
+        EmbeddedSampleSelector& owner;
+        std::vector<Section> sections;
+        int contentHeight = 0;
+    };
+
+    juce::Viewport viewport;
+    std::unique_ptr<ListContent> content;
+};
+
 SlotMachineAudioProcessorEditor::SlotUI::FileButton::FileButton()
     : juce::TextButton("Load")
 {
@@ -824,6 +1084,73 @@ void SlotMachineAudioProcessorEditor::SlotUI::FileButton::updateDragHighlight(bo
 
     dragActive = shouldHighlight;
     repaint();
+}
+
+void SlotMachineAudioProcessorEditor::buildEmbeddedSampleCatalog()
+{
+    if (embeddedCatalogBuilt)
+        return;
+
+    embeddedCatalog.clear();
+    embeddedSampleLookup.clear();
+
+#if __has_include("BinaryData.h")
+    const int totalResources = BinaryData::namedResourceListSize;
+    for (int i = 0; i < totalResources; ++i)
+    {
+        const char* resourceName = BinaryData::namedResourceList[i];
+        if (resourceName == nullptr)
+            continue;
+
+        const juce::String originalName = BinaryData::getNamedResourceOriginalFilename(resourceName);
+        if (originalName.isEmpty() || !originalName.endsWithIgnoreCase(".wav"))
+            continue;
+
+        juce::String fileName = originalName;
+        const int slashIndex = juce::jmax(fileName.lastIndexOfChar('/'), fileName.lastIndexOfChar('\\'));
+        if (slashIndex >= 0)
+            fileName = fileName.substring(slashIndex + 1);
+
+        const int dashIndex = fileName.indexOfChar('-');
+        juce::String category = dashIndex >= 0 ? fileName.substring(0, dashIndex).trim() : juce::String();
+        if (category.isEmpty())
+            category = "Misc";
+
+        juce::String display = dashIndex >= 0 ? fileName.substring(dashIndex + 1) : fileName;
+        display = display.upToLastOccurrenceOf(".", false, false).trim();
+        if (display.isEmpty())
+            display = juce::File(fileName).getFileNameWithoutExtension();
+
+        EmbeddedSample sample{ category, display, juce::String(resourceName) };
+        embeddedCatalog[sample.category].add(sample);
+        embeddedSampleLookup[sample.resourceName] = sample;
+    }
+
+    struct SampleComparator
+    {
+        int compareElements(const EmbeddedSample& first, const EmbeddedSample& second) const
+        {
+            return first.display.compareIgnoreCase(second.display);
+        }
+    } comparator;
+
+    for (auto& entry : embeddedCatalog)
+        entry.second.sort(comparator);
+#endif
+
+    embeddedCatalogBuilt = true;
+}
+
+juce::String SlotMachineAudioProcessorEditor::getEmbeddedSampleDisplay(const juce::String& resourceName) const
+{
+    if (resourceName.isEmpty())
+        return {};
+
+    auto it = embeddedSampleLookup.find(resourceName);
+    if (it != embeddedSampleLookup.end())
+        return it->second.display;
+
+    return {};
 }
 
 void SlotMachineAudioProcessorEditor::SlotUI::updateTimingModeVisibility(int timingMode)
@@ -1737,6 +2064,52 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         {
             handleSlotFileSelection(i, file);
         };
+        ui->fileBtn.onMouseUp = [this, i](const juce::MouseEvent& e)
+        {
+            if (!e.mods.isPopupMenu())
+                return;
+
+            buildEmbeddedSampleCatalog();
+            if (embeddedCatalog.empty())
+                return;
+
+            auto selector = std::make_unique<EmbeddedSampleSelector>(embeddedCatalog);
+            selector->onPreview = [this](const juce::String& resource)
+            {
+                int size = 0;
+                const void* bytes = BinaryData::getNamedResource(resource.toRawUTF8(), size);
+                if (bytes != nullptr && size > 0)
+                    processor.previewEmbeddedWav(bytes, size);
+            };
+
+            selector->onPick = [this, i](const juce::String& resource)
+            {
+                int size = 0;
+                const void* bytes = BinaryData::getNamedResource(resource.toRawUTF8(), size);
+                juce::Array<int> failed;
+
+                if (bytes != nullptr && size > 0
+                    && processor.loadSampleForSlotFromMemory(i, bytes, size, resource))
+                {
+                    embeddedSlotResourceNames[(size_t)i] = resource;
+                }
+                else
+                {
+                    embeddedSlotResourceNames[(size_t)i].clear();
+                    failed.add(i);
+                }
+
+                refreshSlotFileLabels(failed);
+                showPatternWarning(failed);
+                saveCurrentPattern();
+                repaint();
+
+                juce::CallOutBox::dismissAllActiveCallOutBoxes();
+            };
+
+            juce::CallOutBox::launchAsynchronously(std::move(selector),
+                ui->fileBtn.getScreenBounds(), nullptr);
+        };
 
         addAndMakeVisible(ui->midiChannel);
         addAndMakeVisible(ui->muteBtn);
@@ -2485,6 +2858,8 @@ void SlotMachineAudioProcessorEditor::handleSlotFileSelection(int slotIndex, con
     if (!file.existsAsFile())
         return;
 
+    embeddedSlotResourceNames[(size_t)slotIndex].clear();
+
     const bool loaded = processor.loadSampleForSlot(slotIndex, file, startToggle.getToggleState());
 
     juce::Array<int> failed;
@@ -2674,35 +3049,57 @@ void SlotMachineAudioProcessorEditor::refreshSlotFileLabels(const juce::Array<in
 
         const bool hasSample = processor.slotHasSample(i);
         juce::String path = processor.getSlotFilePath(i);
-
-        if (path.isEmpty())
+        if (embeddedSlotResourceNames[(size_t)i].isNotEmpty()
+            && path.isNotEmpty()
+            && path != embeddedSlotResourceNames[(size_t)i])
         {
-            const auto propertyId = getFilePropertyId(i);
-
-            if (activePattern.isValid())
-                path = activePattern.getProperty(propertyId).toString();
-
-            if (path.isEmpty())
-            {
-                const auto stateValue = apvts.state.getProperty(propertyId);
-                if (!stateValue.isVoid())
-                    path = stateValue.toString();
-            }
+            embeddedSlotResourceNames[(size_t)i].clear();
         }
 
+        if (!hasSample)
+            embeddedSlotResourceNames[(size_t)i].clear();
+
         juce::String label = "No file";
+        const juce::String embeddedResource = embeddedSlotResourceNames[(size_t)i];
 
-        if (path.isNotEmpty())
+        if (embeddedResource.isNotEmpty())
         {
-            const bool failed = failedSlots.contains(i);
-            juce::File f(path);
-            const bool exists = f.existsAsFile();
-            const juce::String fileName = f.getFileName().isNotEmpty() ? f.getFileName() : path;
+            juce::String display = getEmbeddedSampleDisplay(embeddedResource);
+            if (display.isEmpty())
+                display = embeddedResource;
 
-            if (failed || !exists)
-                label = fileName + " (missing)";
-            else
-                label = fileName;
+            const bool failed = failedSlots.contains(i) || !hasSample;
+            label = failed ? display + " (missing)" : display + " (embedded)";
+        }
+        else
+        {
+            if (path.isEmpty())
+            {
+                const auto propertyId = getFilePropertyId(i);
+
+                if (activePattern.isValid())
+                    path = activePattern.getProperty(propertyId).toString();
+
+                if (path.isEmpty())
+                {
+                    const auto stateValue = apvts.state.getProperty(propertyId);
+                    if (!stateValue.isVoid())
+                        path = stateValue.toString();
+                }
+            }
+
+            if (path.isNotEmpty())
+            {
+                const bool failed = failedSlots.contains(i);
+                juce::File f(path);
+                const bool exists = f.existsAsFile();
+                const juce::String fileName = f.getFileName().isNotEmpty() ? f.getFileName() : path;
+
+                if (failed || !exists)
+                    label = fileName + " (missing)";
+                else
+                    label = fileName;
+            }
         }
 
         ui->hasFile = hasSample;
@@ -3244,6 +3641,7 @@ void SlotMachineAudioProcessorEditor::buttonClicked(juce::Button* b)
         if (b == &ui->clearBtn)
         {
             processor.clearSlot(i, startToggle.getToggleState()); // remove sample + path in processor
+            embeddedSlotResourceNames[(size_t)i].clear();
             ui->hasFile = false;                              // reflect in UI
             ui->fileLabel.setText("No file", juce::dontSendNotification);
             ui->glow = 0.0f;                                  // optional: calm the halo

@@ -45,6 +45,59 @@ static void accumulateCycleLength(int spacingNumerator, int spacingDenominator,
     }
 }
 
+static bool decodeReaderToStereoBuffer(juce::AudioFormatReader& reader,
+    double targetSampleRate,
+    juce::AudioBuffer<float>& output)
+{
+    const int numChannels = juce::jlimit<int>(1, 2, (int)reader.numChannels);
+    const double sourceRate = reader.sampleRate;
+    const int maxLength = juce::jlimit<int>(1,
+        (int)reader.lengthInSamples,
+        (int)std::ceil(8.0 * 60.0 * sourceRate));
+
+    if (maxLength <= 0)
+        return false;
+
+    juce::AudioBuffer<float> buffer(numChannels, maxLength);
+    reader.read(&buffer, 0, maxLength, 0, true, true);
+
+    const double effectiveTarget = (targetSampleRate > 0.0) ? targetSampleRate : sourceRate;
+    if (sourceRate > 0.0 && effectiveTarget > 0.0
+        && std::abs(effectiveTarget - sourceRate) > 1.0e-6)
+    {
+        const double speedRatio = sourceRate / effectiveTarget;
+        const int resampledLength = juce::jmax(1,
+            (int)std::ceil((double)buffer.getNumSamples() * (effectiveTarget / sourceRate)));
+        juce::AudioBuffer<float> resampled(numChannels, resampledLength);
+
+        for (int ch = 0; ch < numChannels; ++ch)
+        {
+            juce::LagrangeInterpolator interpolator;
+            interpolator.reset();
+            interpolator.process(speedRatio,
+                buffer.getReadPointer(ch),
+                resampled.getWritePointer(ch),
+                resampledLength);
+        }
+
+        buffer = std::move(resampled);
+    }
+
+    if (numChannels == 1)
+    {
+        output.setSize(2, buffer.getNumSamples());
+        output.clear();
+        output.copyFrom(0, 0, buffer, 0, 0, buffer.getNumSamples());
+        output.copyFrom(1, 0, buffer, 0, 0, buffer.getNumSamples());
+    }
+    else
+    {
+        output.makeCopyOf(buffer);
+    }
+
+    return output.getNumSamples() > 0;
+}
+
 static constexpr float kDecayUiMin = 1.0f;
 static constexpr float kDecayUiMax = 100.0f;
 static constexpr float kDecayUiStep = 0.1f;
@@ -230,54 +283,19 @@ void SlotMachineAudioProcessor::SlotVoice::loadFile(const juce::File& f)
 
     if (r != nullptr)
     {
-        const int numCh = (int)juce::jlimit(1, 2, (int)r->numChannels);
-        const int safeLen = (int)juce::jlimit<int>(1, (int)r->lengthInSamples,
-            (int)(8 * 60 * r->sampleRate)); // clamp at 8 minutes
-        juce::AudioBuffer<float> tmp(numCh, safeLen);
-        r->read(&tmp, 0, safeLen, 0, true, true);
-
-        const double sourceRate = r->sampleRate;
-        const double targetRate = (sampleRate > 0.0) ? sampleRate : sourceRate;
-
-        if (sourceRate > 0.0 && targetRate > 0.0
-            && std::abs(targetRate - sourceRate) > 1.0e-6)
+        juce::AudioBuffer<float> decoded;
+        if (decodeReaderToStereoBuffer(*r, sampleRate, decoded))
         {
-            const double speedRatio = sourceRate / targetRate;
-            const int resampledLength = juce::jmax(1, (int)std::ceil((double)tmp.getNumSamples() * (targetRate / sourceRate)));
-            juce::AudioBuffer<float> resampled(numCh, resampledLength);
+            sample = std::move(decoded);
+            active = (sample.getNumSamples() > 0);
+            filePath = f.getFullPathName();
 
-            for (int ch = 0; ch < numCh; ++ch)
-            {
-                juce::LagrangeInterpolator interpolator;
-                interpolator.reset();
-                interpolator.process(speedRatio,
-                    tmp.getReadPointer(ch),
-                    resampled.getWritePointer(ch),
-                    resampledLength);
-            }
-
-            tmp = std::move(resampled);
+            playIndex = -1;
+            playLength = 0;
+            env = 0.0f; envSamplesElapsed = 0; envMaxSamples = 0;
         }
-
-        if (numCh == 1)
-        {
-            sample.setSize(2, tmp.getNumSamples());
-            sample.clear();
-            sample.copyFrom(0, 0, tmp, 0, 0, tmp.getNumSamples());
-            sample.copyFrom(1, 0, tmp, 0, 0, tmp.getNumSamples());
-        }
-        else
-        {
-            sample.makeCopyOf(tmp);
-        }
-
-        active = (sample.getNumSamples() > 0);
-        filePath = f.getFullPathName();
-
-        playIndex = -1;
-        playLength = 0;
-        env = 0.0f; envSamplesElapsed = 0; envMaxSamples = 0;
     }
+
 }
 
 void SlotMachineAudioProcessor::SlotVoice::trigger()
@@ -552,6 +570,11 @@ void SlotMachineAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 
     for (auto& s : slots)
         s.prepare(sampleRate);
+
+    {
+        const juce::SpinLock::ScopedLockType lock(previewLock);
+        previewVoice.reset();
+    }
 
     resetAllPhases(true);
 }
@@ -845,6 +868,13 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
             }
         }
     }
+
+    if (wantAudio)
+    {
+        juce::SpinLock::ScopedTryLockType guard(previewLock);
+        if (guard.isLocked())
+            previewVoice.mixInto(buffer, numSamples);
+    }
 }
 
 //==============================================================================
@@ -1010,6 +1040,71 @@ bool SlotMachineAudioProcessor::loadSampleForSlot(int index, const juce::File& f
 
     apvts.state.removeProperty("slot" + juce::String(index + 1) + "_File", nullptr);
     return false;
+}
+
+bool SlotMachineAudioProcessor::loadSampleForSlotFromMemory(int index, const void* data, int sizeBytes, const juce::String& pseudoName)
+{
+    if (!juce::isPositiveAndBelow(index, kNumSlots) || data == nullptr || sizeBytes <= 0)
+        return false;
+
+    auto& slot = slots[(size_t)index];
+    const bool allowTail = apvts.getRawParameterValue("masterRun")->load();
+    slot.clear(allowTail);
+
+    juce::AudioFormatManager fm;
+    fm.registerBasicFormats();
+
+    auto stream = std::make_unique<juce::MemoryInputStream>(data, (size_t)sizeBytes, false);
+    std::unique_ptr<juce::AudioFormatReader> reader(fm.createReaderFor(std::move(stream)));
+
+    if (reader == nullptr)
+    {
+        slot.setFilePath({});
+        apvts.state.removeProperty("slot" + juce::String(index + 1) + "_File", nullptr);
+        return false;
+    }
+
+    juce::AudioBuffer<float> decoded;
+    if (!decodeReaderToStereoBuffer(*reader, slot.sampleRate, decoded))
+    {
+        slot.setFilePath({});
+        apvts.state.removeProperty("slot" + juce::String(index + 1) + "_File", nullptr);
+        return false;
+    }
+
+    slot.sample = std::move(decoded);
+    slot.active = (slot.sample.getNumSamples() > 0);
+    slot.filePath = pseudoName;
+    slot.playIndex = -1;
+    slot.playLength = slot.sample.getNumSamples();
+    slot.env = 0.0f;
+    slot.envSamplesElapsed = 0;
+    slot.envMaxSamples = 0;
+
+    apvts.state.removeProperty("slot" + juce::String(index + 1) + "_File", nullptr);
+
+    return slot.hasSample();
+}
+
+void SlotMachineAudioProcessor::previewEmbeddedWav(const void* data, int sizeBytes)
+{
+    if (data == nullptr || sizeBytes <= 0)
+        return;
+
+    juce::AudioFormatManager fm;
+    fm.registerBasicFormats();
+
+    auto stream = std::make_unique<juce::MemoryInputStream>(data, (size_t)sizeBytes, false);
+    std::unique_ptr<juce::AudioFormatReader> reader(fm.createReaderFor(std::move(stream)));
+    if (reader == nullptr)
+        return;
+
+    juce::AudioBuffer<float> decoded;
+    if (!decodeReaderToStereoBuffer(*reader, currentSampleRate, decoded))
+        return;
+
+    const juce::SpinLock::ScopedLockType lock(previewLock);
+    previewVoice.start(std::move(decoded));
 }
 
 juce::ValueTree SlotMachineAudioProcessor::copyStateWithVersion()
@@ -1878,6 +1973,80 @@ void SlotMachineAudioProcessor::SlotVoice::setDecayMs(float ms)
     const double samples = (ms / 1000.0) * sampleRate;
     envMaxSamples = (int) std::round(samples);
     envAlpha = (float) std::pow(0.001, 1.0 / juce::jmax(1.0, samples));
+}
+
+void SlotMachineAudioProcessor::PreviewVoice::reset() noexcept
+{
+    playIndex = -1;
+    playLength = 0;
+    env = 0.0f;
+    envAlpha = 1.0f;
+    envSamplesElapsed = 0;
+    envMaxSamples = 0;
+    sample.setSize(0, 0);
+}
+
+void SlotMachineAudioProcessor::PreviewVoice::start(juce::AudioBuffer<float> newSample) noexcept
+{
+    sample = std::move(newSample);
+    playLength = sample.getNumSamples();
+    playIndex = (playLength > 0) ? 0 : -1;
+    env = 1.0f;
+    envSamplesElapsed = 0;
+    envMaxSamples = playLength;
+
+    if (envMaxSamples > 0)
+        envAlpha = (float)std::pow(0.001, 1.0 / (double)envMaxSamples);
+    else
+        envAlpha = 1.0f;
+}
+
+void SlotMachineAudioProcessor::PreviewVoice::mixInto(juce::AudioBuffer<float>& buffer, int numSamples) noexcept
+{
+    if (playIndex < 0 || playLength <= 0)
+        return;
+
+    const int remaining = playLength - playIndex;
+    if (remaining <= 0)
+    {
+        reset();
+        return;
+    }
+
+    const int toProcess = juce::jmin(numSamples, remaining);
+    auto* dstL = buffer.getWritePointer(0);
+    auto* dstR = buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : nullptr;
+
+    const float* srcL = sample.getReadPointer(0, playIndex);
+    const float* srcR = (sample.getNumChannels() > 1) ? sample.getReadPointer(1, playIndex) : nullptr;
+
+    if (srcL == nullptr)
+    {
+        reset();
+        return;
+    }
+
+    for (int i = 0; i < toProcess; ++i)
+    {
+        const float currentEnv = env;
+        if (dstL != nullptr)
+            dstL[i] += srcL[i] * currentEnv;
+        if (dstR != nullptr)
+        {
+            const float rightSample = (srcR != nullptr) ? srcR[i] : srcL[i];
+            dstR[i] += rightSample * currentEnv;
+        }
+
+        env *= envAlpha;
+        ++envSamplesElapsed;
+    }
+
+    playIndex += toProcess;
+
+    const bool finished = playIndex >= playLength
+        || (envMaxSamples > 0 && envSamplesElapsed >= envMaxSamples);
+    if (finished)
+        reset();
 }
 
 void SlotMachineAudioProcessor::requestManualTrigger(int index)

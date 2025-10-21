@@ -98,6 +98,8 @@ public:
     juce::String getSlotFilePath(int index) const;
     void        setSlotFilePath(int index, const juce::String& path);
     bool        loadSampleForSlot(int index, const juce::File& f, bool allowTail = false);
+    bool        loadSampleForSlotFromMemory(int index, const void* data, int sizeBytes, const juce::String& pseudoName = {});
+    void        previewEmbeddedWav(const void* data, int sizeBytes);
     void        upgradeLegacySlotParameters();
     juce::ValueTree copyStateWithVersion();
     void initialiseStateForFirstEditor();
@@ -209,7 +211,24 @@ private:
 
     };
 
+    struct PreviewVoice
+    {
+        void reset() noexcept;
+        void start(juce::AudioBuffer<float> newSample) noexcept;
+        void mixInto(juce::AudioBuffer<float>& buffer, int numSamples) noexcept;
+
+        juce::AudioBuffer<float> sample;
+        int playIndex = -1;
+        int playLength = 0;
+        float env = 0.0f;
+        float envAlpha = 1.0f;
+        int envSamplesElapsed = 0;
+        int envMaxSamples = 0;
+    };
+
     std::array<SlotVoice, kNumSlots> slots;
+    PreviewVoice previewVoice;
+    juce::SpinLock previewLock;
     double currentSampleRate = 44100.0;
     //-------------------
     double masterBeatsAccum = 0.0; // total beats elapsed while running (not modulo)

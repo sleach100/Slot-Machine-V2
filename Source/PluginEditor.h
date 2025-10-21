@@ -7,6 +7,7 @@
 #include <deque>
 #include <vector>
 #include <utility>
+#include <map>
 #include "PluginProcessor.h"
 
 class PolyrhythmVizComponent;
@@ -36,6 +37,15 @@ public:
 
 
 private:
+    struct EmbeddedSample
+    {
+        juce::String category;
+        juce::String display;
+        juce::String resourceName;
+    };
+
+    using EmbeddedCatalog = std::map<juce::String, juce::Array<EmbeddedSample>>;
+
     class VisualizerWindow;
 
     class PatternTabs : public juce::Component,
@@ -259,6 +269,7 @@ private:
     static constexpr int kNumSlots = SlotMachineAudioProcessor::kNumSlots;
     static constexpr int kMaxBeatsPerSlot = 64;
     std::array<std::unique_ptr<SlotUI>, kNumSlots> slots;
+    std::array<juce::String, kNumSlots> embeddedSlotResourceNames{};
 
     PatternTabs patternTabs;
     juce::Label patternWarningLabel;
@@ -336,10 +347,16 @@ private:
     void refreshSlotTimingModeUI();
     void refreshSlotTimingModeUI(int timingMode);
     void parameterChanged(const juce::String& parameterID, float newValue) override;
+    void buildEmbeddedSampleCatalog();
+    juce::String getEmbeddedSampleDisplay(const juce::String& resourceName) const;
 
     // Refs
     SlotMachineAudioProcessor& processor;
     APVTS& apvts;
+
+    EmbeddedCatalog embeddedCatalog;
+    std::map<juce::String, EmbeddedSample> embeddedSampleLookup;
+    bool embeddedCatalogBuilt = false;
 
     float slotScale = 1.0f;
     int   lastTimingMode = 0;
