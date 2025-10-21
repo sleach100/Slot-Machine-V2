@@ -4780,19 +4780,18 @@ void SlotMachineAudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
 {
     if (e.mods.isPopupMenu())
     {
-        if (auto* eventComponent = e.eventComponent)
+        const juce::Point<int> screenPos(e.getScreenX(), e.getScreenY());
+
+        for (int i = 0; i < kNumSlots; ++i)
         {
-            for (int i = 0; i < kNumSlots; ++i)
+            if (auto* ui = slots[(size_t)i].get())
             {
-                if (auto* ui = slots[(size_t)i].get())
+                if (componentContainsScreenPoint(ui->fileBtn, screenPos))
                 {
-                    if (eventComponent == &ui->fileBtn || ui->fileBtn.isParentOf(eventComponent))
-                    {
-                        openEmbeddedSampleSelectorForSlot(i, e);
-                        e.source.enableUnboundedMouseMovement(false);
-                        juce::ignoreUnused(e);
-                        return;
-                    }
+                    openEmbeddedSampleSelectorForSlot(i, e);
+                    e.source.enableUnboundedMouseMovement(false);
+                    juce::ignoreUnused(e);
+                    return;
                 }
             }
         }
