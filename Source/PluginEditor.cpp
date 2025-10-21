@@ -4246,6 +4246,12 @@ void SlotMachineAudioProcessorEditor::handleSlotCountChanged(int slotIndex, Slot
     const float desiredRate  = convertCountToRate(countValue);
     const juce::String paramId = "slot" + juce::String(slotIndex + 1) + "_Rate";
 
+    if (Opt::getInt(apvts, "optTimingMode", 0) == 1)
+    {
+        const uint64_t fullMask = SlotMachineAudioProcessor::maskForBeats(countValue);
+        processor.setSlotCountMask(slotIndex, fullMask);
+    }
+
     if (auto* p = apvts.getParameter(paramId)) // juce::RangedAudioParameter*
     {
         juce::ScopedValueSetter<bool> guard(ui.syncingFromCount, true);
