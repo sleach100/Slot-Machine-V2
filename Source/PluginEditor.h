@@ -154,7 +154,6 @@ private:
     };
 
     // ===== Master UI =====
-    void mouseUp(const juce::MouseEvent& e) override;  // <-- this line
     void handleMasterTap();
     juce::TooltipWindow tooltipWindow;  // must live as long as the editor
     juce::Image        logoImage;
@@ -313,12 +312,12 @@ private:
     {
         const float clampedRate = juce::jlimit(0.0625f, 4.0f, rateValue);
         const int scaled = juce::jmax(1, juce::roundToInt(clampedRate * (float)SlotMachineAudioProcessor::kCountModeBaseBeats));
-        return juce::jlimit(1, kMaxBeatsPerSlot, scaled);
+        return juce::jlimit<int>(1, kMaxBeatsPerSlot, scaled);
     }
 
     static float convertCountToRate(int countValue)
     {
-        const int clampedCount = juce::jlimit(1, kMaxBeatsPerSlot, countValue);
+        const int clampedCount = juce::jlimit<int>(1, kMaxBeatsPerSlot, countValue);
         const float rate = (float)clampedCount / (float)SlotMachineAudioProcessor::kCountModeBaseBeats;
         return juce::jlimit(0.0625f, 4.0f, rate);
     }

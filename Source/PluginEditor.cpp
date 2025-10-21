@@ -617,7 +617,7 @@ SlotMachineAudioProcessorEditor::RenamePatternComponent::RenamePatternComponent(
       onResult(std::move(handler))
 {
     prompt.setJustificationType(juce::Justification::centredLeft);
-    prompt.setFont(juce::Font(15.0f, juce::Font::bold));
+    prompt.setFont(juce::Font(juce::FontOptions(15.0f).withBold(true)));
     addAndMakeVisible(prompt);
 
     editor.setSelectAllWhenFocused(true);
@@ -719,9 +719,7 @@ void SlotMachineAudioProcessorEditor::RenamePatternComponent::commit(bool accept
 // ===== Font helpers =====
 static juce::Font createBoldFont(float size)
 {
-    juce::Font f{ size };
-    f.setBold(true);
-    return f;
+    return juce::Font(juce::FontOptions(size).withBold(true));
 }
 
 // ===== Knob helper =====
@@ -953,7 +951,7 @@ private:
                     g.fillRect(area);
 
                     g.setColour(juce::Colours::whitesmoke);
-                    g.setFont(juce::Font(14.0f));
+                    g.setFont(juce::Font(juce::FontOptions(14.0f)));
                     g.drawText(getButtonText(), area.reduced(10, 0), juce::Justification::centredLeft, true);
                 }
             };
@@ -1195,7 +1193,7 @@ void SlotMachineAudioProcessorEditor::openEmbeddedSampleSelectorForSlot(int slot
         repaint();
     };
 
-    const auto screenPos = e.getScreenPosition();
+    const auto screenPos = e.getScreenPosition().roundToInt();
     const juce::Rectangle<int> anchorBounds(screenPos.x, screenPos.y, 1, 1);
     juce::CallOutBox::launchAsynchronously(std::move(selector), anchorBounds, nullptr);
 }
@@ -2301,7 +2299,7 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
                 {
                     if (timingMode == 1)
                     {
-                        const int beats = juce::jlimit(1, kMaxBeatsPerSlot, juce::roundToInt(beatsSlider.getValue()));
+                        const int beats = juce::jlimit<int>(1, kMaxBeatsPerSlot, juce::roundToInt(beatsSlider.getValue()));
 
                         CountBeatMaskGrid::Options maskOptions;
                         maskOptions.beats = beats;
@@ -2349,27 +2347,6 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
                     juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
                     return;
                 }
-            }
-        }
-    }
-}
-
-void SlotMachineAudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
-{
-    juce::AudioProcessorEditor::mouseUp(e);
-
-    auto* eventComponent = e.eventComponent;
-    if (eventComponent == nullptr || !e.mods.isPopupMenu())
-        return;
-
-    for (int i = 0; i < kNumSlots; ++i)
-    {
-        if (auto* slot = slots[(size_t)i].get())
-        {
-            if (eventComponent == &slot->fileBtn)
-            {
-                openEmbeddedSampleSelectorForSlot(i, e);
-                break;
             }
         }
     }
@@ -3915,7 +3892,7 @@ void SlotMachineAudioProcessorEditor::beginMidiExportWithCycles(int cyclesReques
         const float rate = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Rate");
         int count = 4;
         if (auto* countParam = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Count"))
-            count = juce::jlimit(1, kMaxBeatsPerSlot, (int)std::round(countParam->load()));
+            count = juce::jlimit<int>(1, kMaxBeatsPerSlot, (int)std::round(countParam->load()));
         const float gainPercent = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Gain");
         const float midiChoice = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_MidiChannel");
 
@@ -4795,6 +4772,27 @@ namespace
 
 void SlotMachineAudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
 {
+    if (e.mods.isPopupMenu())
+    {
+        if (auto* eventComponent = e.eventComponent)
+        {
+            for (int i = 0; i < kNumSlots; ++i)
+            {
+                if (auto* ui = slots[(size_t)i].get())
+                {
+                    if (eventComponent == &ui->fileBtn || ui->fileBtn.isParentOf(eventComponent))
+                    {
+                        openEmbeddedSampleSelectorForSlot(i, e);
+                        juce::AudioProcessorEditor::mouseUp(e);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    juce::AudioProcessorEditor::mouseUp(e);
+
     const juce::Point<int> screenPos(e.getScreenX(), e.getScreenY());
 
     if (componentContainsScreenPoint(masterLabel, screenPos))
