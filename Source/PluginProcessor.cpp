@@ -13,6 +13,21 @@ using APVTS = juce::AudioProcessorValueTreeState;
 //==============================================================================
 // 
 namespace {
+static std::unique_ptr<juce::AudioFormatReader> makeReaderFromMemory(juce::AudioFormatManager& fm,
+    const void* data, int sizeBytes)
+{
+    if (data == nullptr || sizeBytes <= 0)
+        return {};
+
+#if JUCE_MAJOR_VERSION >= 7
+    auto stream = std::make_unique<juce::MemoryInputStream>(data, (size_t)sizeBytes, false);
+    return std::unique_ptr<juce::AudioFormatReader>(fm.createReaderFor(std::move(stream)));
+#else
+    auto* stream = new juce::MemoryInputStream(data, (size_t)sizeBytes, false);
+    return std::unique_ptr<juce::AudioFormatReader>(fm.createReaderFor(stream));
+#endif
+}
+
 static int igcd(int a, int b) { while (b) { int t = a % b; a = b; b = t; } return a < 0 ? -a : a; }
 static int ilcm(int a, int b) { return (a == 0 || b == 0) ? 0 : (a / igcd(a, b)) * b; }
 
@@ -1054,8 +1069,7 @@ bool SlotMachineAudioProcessor::loadSampleForSlotFromMemory(int index, const voi
     juce::AudioFormatManager fm;
     fm.registerBasicFormats();
 
-    auto* rawStream = new juce::MemoryInputStream(data, (size_t)sizeBytes, false);
-    std::unique_ptr<juce::AudioFormatReader> reader(fm.createReaderFor(rawStream));
+    auto reader = makeReaderFromMemory(fm, data, sizeBytes);
 
     if (reader == nullptr)
     {
@@ -1094,8 +1108,7 @@ void SlotMachineAudioProcessor::previewEmbeddedWav(const void* data, int sizeByt
     juce::AudioFormatManager fm;
     fm.registerBasicFormats();
 
-    auto* rawStream = new juce::MemoryInputStream(data, (size_t)sizeBytes, false);
-    std::unique_ptr<juce::AudioFormatReader> reader(fm.createReaderFor(rawStream));
+    auto reader = makeReaderFromMemory(fm, data, sizeBytes);
     if (reader == nullptr)
         return;
 

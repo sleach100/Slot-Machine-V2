@@ -617,7 +617,11 @@ SlotMachineAudioProcessorEditor::RenamePatternComponent::RenamePatternComponent(
       onResult(std::move(handler))
 {
     prompt.setJustificationType(juce::Justification::centredLeft);
-    prompt.setFont(juce::Font(juce::FontOptions(15.0f).withBold(true)));
+    {
+        juce::Font f(juce::FontOptions(15.0f));
+        f.setBold(true);
+        prompt.setFont(f);
+    }
     addAndMakeVisible(prompt);
 
     editor.setSelectAllWhenFocused(true);
@@ -719,7 +723,9 @@ void SlotMachineAudioProcessorEditor::RenamePatternComponent::commit(bool accept
 // ===== Font helpers =====
 static juce::Font createBoldFont(float size)
 {
-    return juce::Font(juce::FontOptions(size).withBold(true));
+    juce::Font f(juce::FontOptions(size));
+    f.setBold(true);
+    return f;
 }
 
 // ===== Knob helper =====
