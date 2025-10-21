@@ -5,6 +5,50 @@
               pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
               companyName="Lone Pear Logic" companyCopyright="2005">
   <MAINGROUP id="JtL4vC" name="SlotMachine">
+    <GROUP id="{6DAFA626-C461-0DE7-2A87-7D1750113952}" name="Sound Samples">
+      <FILE id="o9w8AT" name="808-Kick.wav" compile="0" resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/808-Kick.wav"/>
+      <FILE id="va36jA" name="808-Robotic.wav" compile="0" resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/808-Robotic.wav"/>
+      <FILE id="qIbNvV" name="808-Vynlz.wav" compile="0" resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/808-Vynlz.wav"/>
+      <FILE id="zbeRMQ" name="Clap-Aqua Clap.wav" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Clap-Aqua Clap.wav"/>
+      <FILE id="gluqCY" name="Clap-Decontaminated Clap.wav" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Clap-Decontaminated Clap.wav"/>
+      <FILE id="BZtP0Y" name="Clap-Motto Clap.wav" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Clap-Motto Clap.wav"/>
+      <FILE id="FKQKKZ" name="Closed Hat-[Hi Hat] Stove.wav" compile="0"
+            resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Closed Hat-[Hi Hat] Stove.wav"/>
+      <FILE id="ZRQ5DN" name="Closed Hat-Adventure Hat.WAV" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Closed Hat-Adventure Hat.WAV"/>
+      <FILE id="dUXGEa" name="Closed Hat-Hat.wav" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Closed Hat-Hat.wav"/>
+      <FILE id="MyiCQF" name="Crashes &amp; Cymbals-Crash 1.wav" compile="0"
+            resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Crashes &amp; Cymbals-Crash 1.wav"/>
+      <FILE id="Q9C5YF" name="Crashes &amp; Cymbals-Crash 2.wav" compile="0"
+            resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Crashes &amp; Cymbals-Crash 2.wav"/>
+      <FILE id="wMx2tr" name="Crashes &amp; Cymbals-Cymbal.wav" compile="0"
+            resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Crashes &amp; Cymbals-Cymbal.wav"/>
+      <FILE id="zISo9M" name="Open Hat-FunkXelf.wav" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Open Hat-FunkXelf.wav"/>
+      <FILE id="Ri20sh" name="Open hat-Gilberto Gil - Morena.wav" compile="0"
+            resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Open hat-Gilberto Gil - Morena.wav"/>
+      <FILE id="OasR1a" name="Open hat-Minako Yoshida - Clouds.wav" compile="0"
+            resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Open hat-Minako Yoshida - Clouds.wav"/>
+      <FILE id="Mhh7u9" name="Percussion-Conga.wav" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Percussion-Conga.wav"/>
+      <FILE id="K5A9Ir" name="Percussion-Drum Beat.WAV" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Percussion-Drum Beat.WAV"/>
+      <FILE id="J4bDYX" name="Percussion-Mac x Pharrell Bongo.wav" compile="0"
+            resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Percussion-Mac x Pharrell Bongo.wav"/>
+      <FILE id="b5jofN" name="Snare-Alchemist Snare.wav" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Snare-Alchemist Snare.wav"/>
+      <FILE id="qBeaNy" name="Snare-Diplomatic.wav" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Snare-Diplomatic.wav"/>
+      <FILE id="oxTxln" name="Snare-Snare Box.wav" compile="0" resource="1"
+            file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/Snare-Snare Box.wav"/>
+      <FILE id="whph3Q" name="VOX-Grunt.wav" compile="0" resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/VOX-Grunt.wav"/>
+      <FILE id="WRSk7r" name="VOX-Scream.wav" compile="0" resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/VOX-Scream.wav"/>
+      <FILE id="gLrKlK" name="VOX-Yell.wav" compile="0" resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/VOX-Yell.wav"/>
+    </GROUP>
     <GROUP id="{61926566-C5DF-8EE6-5986-B7E788C417A8}" name="Source">
       <FILE id="zN1pzk" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
