@@ -47,6 +47,7 @@ private:
     using EmbeddedCatalog = std::map<juce::String, juce::Array<EmbeddedSample>>;
 
     class VisualizerWindow;
+    class EmbeddedSampleSelector;
 
     class PatternTabs : public juce::Component,
                         private juce::Button::Listener

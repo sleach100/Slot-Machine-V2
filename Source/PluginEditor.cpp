@@ -907,6 +907,9 @@ private:
                 {
                     if (owner.onPick)
                         owner.onPick(resource);
+
+                    if (auto* callout = owner.findParentComponentOfClass<juce::CallOutBox>())
+                        callout->dismiss();
                 };
 
                 speaker = std::make_unique<SpeakerButton>();
@@ -2104,7 +2107,6 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
                 saveCurrentPattern();
                 repaint();
 
-                juce::CallOutBox::dismissAllActiveCallOutBoxes();
             };
 
             juce::CallOutBox::launchAsynchronously(std::move(selector),
