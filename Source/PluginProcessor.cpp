@@ -1055,7 +1055,7 @@ bool SlotMachineAudioProcessor::loadSampleForSlotFromMemory(int index, const voi
     fm.registerBasicFormats();
 
     auto stream = std::make_unique<juce::MemoryInputStream>(data, (size_t)sizeBytes, false);
-    std::unique_ptr<juce::AudioFormatReader> reader(fm.createReaderFor(std::move(stream)));
+    std::unique_ptr<juce::AudioFormatReader> reader(fm.createReaderFor(stream.release()));
 
     if (reader == nullptr)
     {
@@ -1095,7 +1095,7 @@ void SlotMachineAudioProcessor::previewEmbeddedWav(const void* data, int sizeByt
     fm.registerBasicFormats();
 
     auto stream = std::make_unique<juce::MemoryInputStream>(data, (size_t)sizeBytes, false);
-    std::unique_ptr<juce::AudioFormatReader> reader(fm.createReaderFor(std::move(stream)));
+    std::unique_ptr<juce::AudioFormatReader> reader(fm.createReaderFor(stream.release()));
     if (reader == nullptr)
         return;
 
