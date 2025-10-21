@@ -128,6 +128,19 @@ static juce::String slotParamId(int slotIndex, const juce::String& suffix)
     return "slot" + juce::String(slotIndex + 1) + "_" + suffix;
 }
 
+static int getSlotCountValue(APVTS& apvts, int slotIndex)
+{
+    const juce::String countParamId = slotParamId(slotIndex, "Count");
+
+    if (auto* raw = apvts.getRawParameterValue(countParamId))
+        return juce::jlimit(1, 64, juce::roundToInt(raw->load()));
+
+    if (auto* param = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter(countParamId)))
+        return juce::jlimit(1, 64, param->get());
+
+    return 4;
+}
+
 static constexpr uint64_t kDefaultCountMask = std::numeric_limits<uint64_t>::max();
 
 static uint64_t parseCountMaskVar(const juce::var& value)
@@ -850,7 +863,12 @@ void SlotMachineAudioProcessor::initialiseStateForFirstEditor()
     clearAllSlots();
     resetAllPhases(false);
 
-    refreshSlotCountMasksFromState();
+    for (int slotIndex = 0; slotIndex < kNumSlots; ++slotIndex)
+    {
+        const int countValue = getSlotCountValue(apvts, slotIndex);
+        const uint64_t fullMask = maskForBeats(countValue);
+        setSlotCountMask(slotIndex, fullMask);
+    }
 
     apvts.state.setProperty(kAutoInitialiseProperty, false, nullptr);
 }
@@ -961,7 +979,14 @@ void SlotMachineAudioProcessor::refreshSlotCountMasksFromState()
     {
         const juce::String propertyId = slotParamId(i, "CountMask");
         const juce::var storedValue = apvts.state.getProperty(propertyId);
-        const uint64_t mask = parseCountMaskVar(storedValue);
+        uint64_t mask = parseCountMaskVar(storedValue);
+
+        const int countValue = getSlotCountValue(apvts, i);
+        if (countValue > 0)
+            mask &= maskForBeats(countValue);
+        else
+            mask = 0ull;
+
         countBeatMasks[(size_t)i].store(mask, std::memory_order_relaxed);
 
         const juce::String serialised = serialiseCountMaskValue(mask);
