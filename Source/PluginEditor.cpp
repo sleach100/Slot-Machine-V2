@@ -4023,6 +4023,14 @@ void SlotMachineAudioProcessorEditor::doResetAll(bool persistOptions)
     // Clear all samples & file path properties
     processor.clearAllSlots();
 
+    for (int slotIndex = 0; slotIndex < kNumSlots; ++slotIndex)
+    {
+        const juce::String countParamId = "slot" + juce::String(slotIndex + 1) + "_Count";
+        const int countValue = juce::jmax(1, Opt::getInt(apvts, countParamId, 4));
+        const uint64_t fullMask = SlotMachineAudioProcessor::maskForBeats(countValue);
+        processor.setSlotCountMask(slotIndex, fullMask);
+    }
+
     for (int i = 0; i < kNumSlots; ++i)
     {
         if (slots[(size_t)i])
