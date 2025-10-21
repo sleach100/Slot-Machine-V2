@@ -1779,7 +1779,7 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
 
         setupKnob(ui->count, 1.0, (double)SlotMachineAudioProcessorEditor::kMaxBeatsPerSlot, 1.0, "Beats/Cycle (Count)");
         ui->count.setNumDecimalPlacesToDisplay(0);
-        ui->count.setTooltip("Number of beats in one shared cycle.");
+		// ui->count.setTooltip("Number of beats in one shared cycle.");  // Disable Tooltip text in Count slider to avoid confusion with Quick Pick feature
         setupKnob(ui->rate, 0.0625, 4.00, 0.0001, "Rate", 4);
         setupKnob(ui->gain, 0.0, 100.0, 0.1, "Gain");
         setupKnob(ui->decay, 1.0, 100.0, 0.1, "Decay (ms)");
