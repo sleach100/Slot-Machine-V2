@@ -30,6 +30,7 @@ public:
     void resized() override;
     void parentHierarchyChanged() override;
     void mouseDown(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
     // Standalone helper used to ensure the UI starts in a clean state.
@@ -278,6 +279,7 @@ private:
     // ===== Helpers =====
     void buttonClicked(juce::Button*) override;
     void openUserManual();
+    void openEmbeddedSampleSelectorForSlot(int slotIndex, const juce::MouseEvent& e);
     void timerCallback() override;
     void updateStandaloneWindowTitle();
 

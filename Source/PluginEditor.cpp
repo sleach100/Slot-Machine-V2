@@ -754,7 +754,7 @@ public:
         const int width = 260;
         const int maxHeight = 320;
         const int minHeight = 140;
-        const int targetHeight = juce::jlimit(minHeight, maxHeight, content->getHeight() + 12);
+        const int targetHeight = juce::jlimit<int>(minHeight, maxHeight, content->getHeight() + 12);
         setSize(width, targetHeight);
     }
 
@@ -1154,6 +1154,50 @@ juce::String SlotMachineAudioProcessorEditor::getEmbeddedSampleDisplay(const juc
         return it->second.display;
 
     return {};
+}
+
+void SlotMachineAudioProcessorEditor::openEmbeddedSampleSelectorForSlot(int slotIndex, const juce::MouseEvent& e)
+{
+    buildEmbeddedSampleCatalog();
+    if (embeddedCatalog.empty())
+        return;
+
+    auto selector = std::make_unique<EmbeddedSampleSelector>(embeddedCatalog);
+
+    selector->onPreview = [this](const juce::String& resource)
+    {
+        int size = 0;
+        const void* bytes = BinaryData::getNamedResource(resource.toRawUTF8(), size);
+        if (bytes != nullptr && size > 0)
+            processor.previewEmbeddedWav(bytes, size);
+    };
+
+    selector->onPick = [this, slotIndex](const juce::String& resource)
+    {
+        int size = 0;
+        const void* bytes = BinaryData::getNamedResource(resource.toRawUTF8(), size);
+        juce::Array<int> failed;
+
+        if (bytes != nullptr && size > 0
+            && processor.loadSampleForSlotFromMemory(slotIndex, bytes, size, resource))
+        {
+            embeddedSlotResourceNames[(size_t)slotIndex] = resource;
+        }
+        else
+        {
+            embeddedSlotResourceNames[(size_t)slotIndex].clear();
+            failed.add(slotIndex);
+        }
+
+        refreshSlotFileLabels(failed);
+        showPatternWarning(failed);
+        saveCurrentPattern();
+        repaint();
+    };
+
+    const auto screenPos = e.getScreenPosition();
+    const juce::Rectangle<int> anchorBounds(screenPos.x, screenPos.y, 1, 1);
+    juce::CallOutBox::launchAsynchronously(std::move(selector), anchorBounds, nullptr);
 }
 
 void SlotMachineAudioProcessorEditor::SlotUI::updateTimingModeVisibility(int timingMode)
@@ -2063,54 +2107,10 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         ui->fileLabel.setText("No file", juce::dontSendNotification);
         ui->fileLabel.setJustificationType(juce::Justification::centredLeft);
         ui->fileBtn.addListener(this);
-        ui->fileBtn.onFileDropped = [this, i](const juce::File& file)
+        ui->fileBtn.addMouseListener(this, false);
+        ui->fileBtn.onFileDropped = [this, slotIndex](const juce::File& file)
         {
-            handleSlotFileSelection(i, file);
-        };
-        ui->fileBtn.onMouseUp = [this, i](const juce::MouseEvent& e)
-        {
-            if (!e.mods.isPopupMenu())
-                return;
-
-            buildEmbeddedSampleCatalog();
-            if (embeddedCatalog.empty())
-                return;
-
-            auto selector = std::make_unique<EmbeddedSampleSelector>(embeddedCatalog);
-            selector->onPreview = [this](const juce::String& resource)
-            {
-                int size = 0;
-                const void* bytes = BinaryData::getNamedResource(resource.toRawUTF8(), size);
-                if (bytes != nullptr && size > 0)
-                    processor.previewEmbeddedWav(bytes, size);
-            };
-
-            selector->onPick = [this, i](const juce::String& resource)
-            {
-                int size = 0;
-                const void* bytes = BinaryData::getNamedResource(resource.toRawUTF8(), size);
-                juce::Array<int> failed;
-
-                if (bytes != nullptr && size > 0
-                    && processor.loadSampleForSlotFromMemory(i, bytes, size, resource))
-                {
-                    embeddedSlotResourceNames[(size_t)i] = resource;
-                }
-                else
-                {
-                    embeddedSlotResourceNames[(size_t)i].clear();
-                    failed.add(i);
-                }
-
-                refreshSlotFileLabels(failed);
-                showPatternWarning(failed);
-                saveCurrentPattern();
-                repaint();
-
-            };
-
-            juce::CallOutBox::launchAsynchronously(std::move(selector),
-                ui->fileBtn.getScreenBounds(), nullptr);
+            handleSlotFileSelection(slotIndex, file);
         };
 
         addAndMakeVisible(ui->midiChannel);
@@ -2349,6 +2349,27 @@ void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
                     juce::CallOutBox::launchAsynchronously(std::move(grid), calloutBounds, nullptr);
                     return;
                 }
+            }
+        }
+    }
+}
+
+void SlotMachineAudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
+{
+    juce::AudioProcessorEditor::mouseUp(e);
+
+    auto* eventComponent = e.eventComponent;
+    if (eventComponent == nullptr || !e.mods.isPopupMenu())
+        return;
+
+    for (int i = 0; i < kNumSlots; ++i)
+    {
+        if (auto* slot = slots[(size_t)i].get())
+        {
+            if (eventComponent == &slot->fileBtn)
+            {
+                openEmbeddedSampleSelectorForSlot(i, e);
+                break;
             }
         }
     }
