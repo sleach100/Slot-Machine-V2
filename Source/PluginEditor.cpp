@@ -618,7 +618,7 @@ SlotMachineAudioProcessorEditor::RenamePatternComponent::RenamePatternComponent(
 {
     prompt.setJustificationType(juce::Justification::centredLeft);
     {
-        juce::Font f(juce::FontOptions(15.0f));
+        juce::Font f{ juce::FontOptions(15.0f) };
         f.setBold(true);
         prompt.setFont(f);
     }
@@ -723,7 +723,7 @@ void SlotMachineAudioProcessorEditor::RenamePatternComponent::commit(bool accept
 // ===== Font helpers =====
 static juce::Font createBoldFont(float size)
 {
-    juce::Font f(juce::FontOptions(size));
+    juce::Font f{ juce::FontOptions(size) };
     f.setBold(true);
     return f;
 }
@@ -957,7 +957,7 @@ private:
                     g.fillRect(area);
 
                     g.setColour(juce::Colours::whitesmoke);
-                    g.setFont(juce::Font(juce::FontOptions(14.0f)));
+                    g.setFont(juce::Font{ juce::FontOptions(14.0f) });
                     g.drawText(getButtonText(), area.reduced(10, 0), juce::Justification::centredLeft, true);
                 }
             };
