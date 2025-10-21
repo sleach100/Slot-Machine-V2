@@ -80,7 +80,7 @@ static std::unique_ptr<juce::AudioFormatReader> createReaderForEmbeddedSample(co
     if (data == nullptr || dataSize <= 0)
         return nullptr;
 
-    auto stream = std::make_unique<juce::MemoryInputStream>(data, (size_t)dataSize, false);
+    std::unique_ptr<juce::InputStream> stream = std::make_unique<juce::MemoryInputStream>(data, (size_t)dataSize, false);
     return std::unique_ptr<juce::AudioFormatReader>(getSharedFormatManager().createReaderFor(std::move(stream)));
 }
 

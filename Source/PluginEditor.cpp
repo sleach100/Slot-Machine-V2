@@ -954,30 +954,30 @@ private:
 
         void paintButton(juce::Graphics& g, bool isMouseOverButton, bool isButtonDown) override
         {
-            auto bounds = getLocalBounds().toFloat().reduced(3.0f);
+            const auto boundsF = getLocalBounds().toFloat().reduced(3.0f);
             auto colour = juce::Colours::white.withAlpha(isButtonDown ? 0.9f : (isMouseOverButton ? 0.85f : 0.7f));
             g.setColour(colour);
 
-            const float rectWidth = bounds.getWidth() * 0.25f;
-            const float rectHeight = bounds.getHeight() * 0.55f;
-            const float rectX = bounds.getX();
-            const float rectY = bounds.getCentreY() - rectHeight * 0.5f;
+            const float rectWidth = boundsF.getWidth() * 0.25f;
+            const float rectHeight = boundsF.getHeight() * 0.55f;
+            const float rectX = boundsF.getX();
+            const float rectY = boundsF.getCentreY() - rectHeight * 0.5f;
             g.fillRect(rectX, rectY, rectWidth, rectHeight);
 
             juce::Path horn;
             const float hornLeft = rectX + rectWidth;
-            const float hornRight = bounds.getRight() - bounds.getWidth() * 0.25f;
-            horn.addTriangle(hornLeft, bounds.getY(), hornRight, bounds.getCentreY(), hornLeft, bounds.getBottom());
+            const float hornRight = boundsF.getRight() - boundsF.getWidth() * 0.25f;
+            horn.addTriangle(hornLeft, boundsF.getY(), hornRight, boundsF.getCentreY(), hornLeft, boundsF.getBottom());
             g.fillPath(horn);
 
             g.setColour(colour.withAlpha(0.75f));
-            const float arcWidth = bounds.getWidth() * 0.6f;
-            const float arcHeight = bounds.getHeight() - 6.0f;
-            const float arcX = hornRight - bounds.getWidth() * 0.15f;
-            const float arcY = bounds.getY() + 3.0f;
+            const float arcWidth = boundsF.getWidth() * 0.6f;
+            const float arcHeight = boundsF.getHeight() - 6.0f;
+            const float arcX = hornRight - boundsF.getWidth() * 0.15f;
+            const float arcY = boundsF.getY() + 3.0f;
             g.drawArc(arcX, arcY, arcWidth, arcHeight,
                 -juce::MathConstants<float>::halfPi, juce::MathConstants<float>::halfPi, 1.4f);
-            g.drawArc(arcX + bounds.getWidth() * 0.1f, arcY + 4.0f,
+            g.drawArc(arcX + boundsF.getWidth() * 0.1f, arcY + 4.0f,
                 arcWidth * 0.8f, arcHeight - 8.0f,
                 -juce::MathConstants<float>::halfPi, juce::MathConstants<float>::halfPi, 1.2f);
         }
@@ -2748,12 +2748,13 @@ void SlotMachineAudioProcessorEditor::showEmbeddedSampleSelector(int slotIndex, 
     auto selector = std::make_unique<EmbeddedSampleSelector>(*this, slotIndex);
     selector->setSize(320, 360);
     auto* selectorPtr = selector.get();
+    std::unique_ptr<juce::Component> componentToShow(selector.release());
 
     auto anchorArea = getLocalArea(&anchor, anchor.getLocalBounds());
     juce::Rectangle<int> calloutBounds(0, 0, 1, 1);
     calloutBounds.setCentre(anchorArea.getCentreX(), anchorArea.getBottom());
 
-    auto& callout = juce::CallOutBox::launchAsynchronously(std::move(selector), calloutBounds, this);
+    auto& callout = juce::CallOutBox::launchAsynchronously(std::move(componentToShow), calloutBounds, this);
     embeddedSampleCallout = &callout;
     embeddedSampleSelector = selectorPtr;
     embeddedSampleSlotIndex = slotIndex;
@@ -2815,7 +2816,7 @@ juce::String SlotMachineAudioProcessorEditor::defaultPatternNameForIndex(int ind
     do
     {
         const int remainder = value % 26;
-        result = juce::String::charToString((juce::juce_wchar)('A' + remainder)) + result;
+        result = juce::String::charToString((juce_wchar)('A' + remainder)) + result;
         value = value / 26 - 1;
     }
     while (value >= 0);
