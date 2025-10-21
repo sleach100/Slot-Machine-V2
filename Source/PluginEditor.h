@@ -144,6 +144,11 @@ private:
     // ===== Master UI =====
     void mouseUp(const juce::MouseEvent& e) override;  // <-- this line
     void handleMasterTap();
+    void showEmbeddedSampleSelector(int slotIndex, juce::Component& anchor);
+    void dismissEmbeddedSampleSelector();
+    void handleEmbeddedSampleSelection(int slotIndex, const EmbeddedSamples::SampleInfo& sample);
+    void previewEmbeddedSample(const EmbeddedSamples::SampleInfo& sample);
+    void handleEmbeddedSampleSelectorDismissed(class EmbeddedSampleSelector* selector);
     juce::TooltipWindow tooltipWindow;  // must live as long as the editor
     juce::Image        logoImage;
 
@@ -207,11 +212,13 @@ private:
             FileButton();
 
             std::function<void(const juce::File&)> onFileDropped;
+            std::function<void(const juce::MouseEvent&)> onPopupMenu;
 
             bool isInterestedInFileDrag(const juce::StringArray& files) override;
             void fileDragEnter(const juce::StringArray& files, int, int) override;
             void fileDragExit(const juce::StringArray& files) override;
             void filesDropped(const juce::StringArray& files, int, int) override;
+            void mouseUp(const juce::MouseEvent& e) override;
 
         private:
             void paintButton(juce::Graphics& g, bool isMouseOverButton, bool isButtonDown) override;
@@ -259,6 +266,10 @@ private:
     static constexpr int kNumSlots = SlotMachineAudioProcessor::kNumSlots;
     static constexpr int kMaxBeatsPerSlot = 64;
     std::array<std::unique_ptr<SlotUI>, kNumSlots> slots;
+    class EmbeddedSampleSelector;
+    juce::CallOutBox* embeddedSampleCallout = nullptr;
+    EmbeddedSampleSelector* embeddedSampleSelector = nullptr;
+    int embeddedSampleSlotIndex = -1;
 
     PatternTabs patternTabs;
     juce::Label patternWarningLabel;

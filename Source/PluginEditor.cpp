@@ -59,6 +59,28 @@ namespace
     constexpr int kMasterLabelExtraYOffset = 35;
     constexpr float kBannerScaleMultiplier = 2.24f;
 
+    bool isEmbeddedSamplePath(const juce::String& path)
+    {
+        return path.startsWithIgnoreCase("embedded:");
+    }
+
+    juce::String extractEmbeddedFilename(const juce::String& path)
+    {
+        return path.fromFirstOccurrenceOf(":", false, false).trim();
+    }
+
+    juce::String displayNameForEmbeddedSamplePath(const juce::String& path)
+    {
+        const auto name = extractEmbeddedFilename(path);
+        if (name.isEmpty())
+            return {};
+
+        if (const auto* sample = EmbeddedSamples::findByOriginalFilename(name))
+            return sample->displayName;
+
+        return name;
+    }
+
     void confirmWarningWithContinue(juce::Component* parent,
         const juce::String& title,
         const juce::String& message,
@@ -779,6 +801,18 @@ void SlotMachineAudioProcessorEditor::SlotUI::FileButton::filesDropped(const juc
     }
 }
 
+void SlotMachineAudioProcessorEditor::SlotUI::FileButton::mouseUp(const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu())
+    {
+        if (onPopupMenu)
+            onPopupMenu(e);
+        return;
+    }
+
+    juce::TextButton::mouseUp(e);
+}
+
 void SlotMachineAudioProcessorEditor::SlotUI::FileButton::paintButton(juce::Graphics& g, bool isMouseOverButton, bool isButtonDown)
 {
     juce::TextButton::paintButton(g, isMouseOverButton || dragActive, isButtonDown);
@@ -851,6 +885,205 @@ void SlotMachineAudioProcessorEditor::SlotUI::updateTimingModeVisibility(int tim
     showRateLabel = showRate;
     showCountLabel = showCount;
 }
+
+class SlotMachineAudioProcessorEditor::EmbeddedSampleSelector : public juce::Component
+{
+public:
+    EmbeddedSampleSelector(SlotMachineAudioProcessorEditor& ownerRef, int slot)
+        : editor(ownerRef), slotIndex(slot)
+    {
+        addAndMakeVisible(viewport);
+        viewport.setViewedComponent(&content, false);
+        viewport.setScrollBarsShown(true, false);
+        viewport.setScrollBarThickness(8);
+
+        const auto& samples = EmbeddedSamples::getAllSamples();
+        juce::String currentCategory;
+
+        for (const auto& sample : samples)
+        {
+            if (currentCategory.compareIgnoreCase(sample.category) != 0)
+            {
+                currentCategory = sample.category;
+
+                auto label = std::make_unique<juce::Label>();
+                label->setText(currentCategory, juce::dontSendNotification);
+                label->setJustificationType(juce::Justification::centredLeft);
+                label->setColour(juce::Label::textColourId, juce::Colours::white);
+                label->setFont(createBoldFont(14.0f));
+                label->setInterceptsMouseClicks(false, false);
+                content.addAndMakeVisible(*label);
+                layoutEntries.push_back({ label.get(), 24 });
+                categoryLabels.push_back(std::move(label));
+            }
+
+            auto row = std::make_unique<SampleRow>(*this, sample);
+            content.addAndMakeVisible(*row);
+            layoutEntries.push_back({ row.get(), 30 });
+            sampleRows.push_back(std::move(row));
+        }
+    }
+
+    ~EmbeddedSampleSelector() override
+    {
+        editor.handleEmbeddedSampleSelectorDismissed(this);
+    }
+
+    void resized() override
+    {
+        viewport.setBounds(getLocalBounds());
+        const int width = viewport.getWidth();
+        int y = 0;
+        for (auto& entry : layoutEntries)
+        {
+            entry.component->setBounds(0, y, width, entry.height);
+            y += entry.height;
+        }
+
+        content.setSize(width, juce::jmax(y, viewport.getHeight()));
+    }
+
+private:
+    class SpeakerButton : public juce::Button
+    {
+    public:
+        SpeakerButton()
+            : juce::Button("speaker")
+        {
+        }
+
+        void paintButton(juce::Graphics& g, bool isMouseOverButton, bool isButtonDown) override
+        {
+            auto bounds = getLocalBounds().toFloat().reduced(3.0f);
+            auto colour = juce::Colours::white.withAlpha(isButtonDown ? 0.9f : (isMouseOverButton ? 0.85f : 0.7f));
+            g.setColour(colour);
+
+            const float rectWidth = bounds.getWidth() * 0.25f;
+            const float rectHeight = bounds.getHeight() * 0.55f;
+            const float rectX = bounds.getX();
+            const float rectY = bounds.getCentreY() - rectHeight * 0.5f;
+            g.fillRect(rectX, rectY, rectWidth, rectHeight);
+
+            juce::Path horn;
+            const float hornLeft = rectX + rectWidth;
+            const float hornRight = bounds.getRight() - bounds.getWidth() * 0.25f;
+            horn.addTriangle(hornLeft, bounds.getY(), hornRight, bounds.getCentreY(), hornLeft, bounds.getBottom());
+            g.fillPath(horn);
+
+            g.setColour(colour.withAlpha(0.75f));
+            const float arcWidth = bounds.getWidth() * 0.6f;
+            const float arcHeight = bounds.getHeight() - 6.0f;
+            const float arcX = hornRight - bounds.getWidth() * 0.15f;
+            const float arcY = bounds.getY() + 3.0f;
+            g.drawArc(arcX, arcY, arcWidth, arcHeight,
+                -juce::MathConstants<float>::halfPi, juce::MathConstants<float>::halfPi, 1.4f);
+            g.drawArc(arcX + bounds.getWidth() * 0.1f, arcY + 4.0f,
+                arcWidth * 0.8f, arcHeight - 8.0f,
+                -juce::MathConstants<float>::halfPi, juce::MathConstants<float>::halfPi, 1.2f);
+        }
+    };
+
+    class SampleRow : public juce::Component, private juce::Button::Listener
+    {
+    public:
+        SampleRow(EmbeddedSampleSelector& ownerRef, const EmbeddedSamples::SampleInfo& sampleInfo)
+            : selector(ownerRef), sample(sampleInfo)
+        {
+            addAndMakeVisible(nameLabel);
+            nameLabel.setText(sample.displayName, juce::dontSendNotification);
+            nameLabel.setJustificationType(juce::Justification::centredLeft);
+            nameLabel.setColour(juce::Label::textColourId, juce::Colours::whitesmoke);
+            nameLabel.setInterceptsMouseClicks(false, false);
+
+            addAndMakeVisible(previewButton);
+            previewButton.addListener(this);
+            previewButton.setTooltip("Play sample");
+            previewButton.setMouseCursor(juce::MouseCursor::PointingHandCursor);
+
+            setMouseCursor(juce::MouseCursor::PointingHandCursor);
+        }
+
+        void resized() override
+        {
+            auto bounds = getLocalBounds();
+            auto previewArea = bounds.removeFromRight(34).reduced(2);
+            previewButton.setBounds(previewArea);
+            nameLabel.setBounds(bounds.reduced(8, 2));
+        }
+
+        void paint(juce::Graphics& g) override
+        {
+            if (hovered)
+            {
+                g.setColour(juce::Colours::white.withAlpha(0.08f));
+                g.fillRect(getLocalBounds());
+            }
+
+            g.setColour(juce::Colours::white.withAlpha(0.08f));
+            g.fillRect(getLocalBounds().removeFromBottom(1));
+        }
+
+        void mouseEnter(const juce::MouseEvent&) override
+        {
+            hovered = true;
+            repaint();
+        }
+
+        void mouseExit(const juce::MouseEvent&) override
+        {
+            hovered = false;
+            repaint();
+        }
+
+        void mouseUp(const juce::MouseEvent& e) override
+        {
+            if (e.eventComponent == &previewButton)
+                return;
+
+            if (e.mouseWasClicked() && !e.mods.isPopupMenu())
+                selector.handleRowClicked(sample);
+        }
+
+    private:
+        void buttonClicked(juce::Button* b) override
+        {
+            if (b == &previewButton)
+                selector.handlePreviewClicked(sample);
+        }
+
+        EmbeddedSampleSelector& selector;
+        const EmbeddedSamples::SampleInfo& sample;
+        juce::Label nameLabel;
+        SpeakerButton previewButton;
+        bool hovered = false;
+    };
+
+    void handleRowClicked(const EmbeddedSamples::SampleInfo& sample)
+    {
+        editor.handleEmbeddedSampleSelection(slotIndex, sample);
+    }
+
+    void handlePreviewClicked(const EmbeddedSamples::SampleInfo& sample)
+    {
+        editor.previewEmbeddedSample(sample);
+    }
+
+    struct Entry
+    {
+        juce::Component* component = nullptr;
+        int height = 0;
+    };
+
+    SlotMachineAudioProcessorEditor& editor;
+    int slotIndex = 0;
+    juce::Viewport viewport;
+    juce::Component content;
+    std::vector<Entry> layoutEntries;
+    std::vector<std::unique_ptr<juce::Label>> categoryLabels;
+    std::vector<std::unique_ptr<SampleRow>> sampleRows;
+
+    friend class SampleRow;
+};
 
 // ===== Standalone persistence for Options =====
 static const juce::StringArray kOptionParamIds{
@@ -1737,6 +1970,14 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         {
             handleSlotFileSelection(i, file);
         };
+        ui->fileBtn.onPopupMenu = [this, slotIndex](const juce::MouseEvent&)
+        {
+            if (fileDialogActive)
+                return;
+
+            if (auto* slotUI = slots[(size_t)slotIndex].get())
+                showEmbeddedSampleSelector(slotIndex, slotUI->fileBtn);
+        };
 
         addAndMakeVisible(ui->midiChannel);
         addAndMakeVisible(ui->muteBtn);
@@ -2497,6 +2738,75 @@ void SlotMachineAudioProcessorEditor::handleSlotFileSelection(int slotIndex, con
     repaint();
 }
 
+void SlotMachineAudioProcessorEditor::showEmbeddedSampleSelector(int slotIndex, juce::Component& anchor)
+{
+    if (!juce::isPositiveAndBelow(slotIndex, kNumSlots))
+        return;
+
+    dismissEmbeddedSampleSelector();
+
+    auto selector = std::make_unique<EmbeddedSampleSelector>(*this, slotIndex);
+    selector->setSize(320, 360);
+    auto* selectorPtr = selector.get();
+
+    auto anchorArea = getLocalArea(&anchor, anchor.getLocalBounds());
+    juce::Rectangle<int> calloutBounds(0, 0, 1, 1);
+    calloutBounds.setCentre(anchorArea.getCentreX(), anchorArea.getBottom());
+
+    auto& callout = juce::CallOutBox::launchAsynchronously(std::move(selector), calloutBounds, this);
+    embeddedSampleCallout = &callout;
+    embeddedSampleSelector = selectorPtr;
+    embeddedSampleSlotIndex = slotIndex;
+}
+
+void SlotMachineAudioProcessorEditor::dismissEmbeddedSampleSelector()
+{
+    if (embeddedSampleCallout != nullptr)
+    {
+        embeddedSampleCallout->dismiss();
+        embeddedSampleCallout = nullptr;
+    }
+
+    embeddedSampleSelector = nullptr;
+    embeddedSampleSlotIndex = -1;
+}
+
+void SlotMachineAudioProcessorEditor::handleEmbeddedSampleSelection(int slotIndex, const EmbeddedSamples::SampleInfo& sample)
+{
+    if (!juce::isPositiveAndBelow(slotIndex, kNumSlots))
+        return;
+
+    const bool allowTail = startToggle.getToggleState();
+    const bool loaded = processor.loadEmbeddedSampleForSlot(slotIndex, sample.originalFilename, allowTail);
+
+    juce::Array<int> failed;
+    if (!loaded)
+        failed.add(slotIndex);
+
+    refreshSlotFileLabels(failed);
+    showPatternWarning(failed);
+    if (loaded)
+        saveCurrentPattern();
+
+    repaint();
+    dismissEmbeddedSampleSelector();
+}
+
+void SlotMachineAudioProcessorEditor::previewEmbeddedSample(const EmbeddedSamples::SampleInfo& sample)
+{
+    processor.previewEmbeddedSample(sample.originalFilename);
+}
+
+void SlotMachineAudioProcessorEditor::handleEmbeddedSampleSelectorDismissed(EmbeddedSampleSelector* selector)
+{
+    if (embeddedSampleSelector == selector)
+    {
+        embeddedSampleSelector = nullptr;
+        embeddedSampleCallout = nullptr;
+        embeddedSampleSlotIndex = -1;
+    }
+}
+
 juce::String SlotMachineAudioProcessorEditor::defaultPatternNameForIndex(int index) const
 {
     juce::String result;
@@ -2695,14 +3005,25 @@ void SlotMachineAudioProcessorEditor::refreshSlotFileLabels(const juce::Array<in
         if (path.isNotEmpty())
         {
             const bool failed = failedSlots.contains(i);
-            juce::File f(path);
-            const bool exists = f.existsAsFile();
-            const juce::String fileName = f.getFileName().isNotEmpty() ? f.getFileName() : path;
+            if (isEmbeddedSamplePath(path))
+            {
+                juce::String display = displayNameForEmbeddedSamplePath(path);
+                if (display.isEmpty())
+                    display = extractEmbeddedFilename(path);
 
-            if (failed || !exists)
-                label = fileName + " (missing)";
+                label = failed ? display + " (missing)" : display;
+            }
             else
-                label = fileName;
+            {
+                juce::File f(path);
+                const bool exists = f.existsAsFile();
+                const juce::String fileName = f.getFileName().isNotEmpty() ? f.getFileName() : path;
+
+                if (failed || !exists)
+                    label = fileName + " (missing)";
+                else
+                    label = fileName;
+            }
         }
 
         ui->hasFile = hasSample;

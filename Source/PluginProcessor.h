@@ -5,6 +5,14 @@
 #include <atomic>
 #include <cstdint>
 #include <limits>
+#include <memory>
+
+#include "EmbeddedSampleCatalog.h"
+
+namespace juce
+{
+    class AudioFormatReader;
+}
 
 class SlotMachineAudioProcessor : public juce::AudioProcessor
 {
@@ -98,6 +106,8 @@ public:
     juce::String getSlotFilePath(int index) const;
     void        setSlotFilePath(int index, const juce::String& path);
     bool        loadSampleForSlot(int index, const juce::File& f, bool allowTail = false);
+    bool        loadEmbeddedSampleForSlot(int index, const juce::String& originalFilename, bool allowTail = false);
+    void        previewEmbeddedSample(const juce::String& originalFilename);
     void        upgradeLegacySlotParameters();
     juce::ValueTree copyStateWithVersion();
     void initialiseStateForFirstEditor();
@@ -198,6 +208,7 @@ private:
         //--------------------------
 
         void loadFile(const juce::File& f);
+        void loadReader(std::unique_ptr<juce::AudioFormatReader> reader, const juce::String& sourcePath);
         void trigger();
         void mixInto(juce::AudioBuffer<float>& io, int numSamples, float gain);
 
@@ -210,6 +221,7 @@ private:
     };
 
     std::array<SlotVoice, kNumSlots> slots;
+    SlotVoice previewVoice;
     double currentSampleRate = 44100.0;
     //-------------------
     double masterBeatsAccum = 0.0; // total beats elapsed while running (not modulo)
