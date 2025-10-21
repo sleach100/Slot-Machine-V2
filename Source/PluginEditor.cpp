@@ -29,6 +29,7 @@ namespace BinaryData
 #endif
 
 using APVTS = juce::AudioProcessorValueTreeState;
+using juce::juce_wchar;
 static const juce::Identifier kPatternNameProperty("name");
 
 static juce::Font createBoldFont(float size);
