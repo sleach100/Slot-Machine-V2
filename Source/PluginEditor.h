@@ -7,6 +7,7 @@
 #include <deque>
 #include <vector>
 #include <utility>
+#include <map>
 #include "PluginProcessor.h"
 
 class PolyrhythmVizComponent;
@@ -29,6 +30,7 @@ public:
     void resized() override;
     void parentHierarchyChanged() override;
     void mouseDown(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
     // Standalone helper used to ensure the UI starts in a clean state.
@@ -36,7 +38,17 @@ public:
 
 
 private:
+    struct EmbeddedSample
+    {
+        juce::String category;
+        juce::String display;
+        juce::String resourceName;
+    };
+
+    using EmbeddedCatalog = std::map<juce::String, juce::Array<EmbeddedSample>>;
+
     class VisualizerWindow;
+    class EmbeddedSampleSelector;
 
     class PatternTabs : public juce::Component,
                         private juce::Button::Listener
@@ -142,7 +154,6 @@ private:
     };
 
     // ===== Master UI =====
-    void mouseUp(const juce::MouseEvent& e) override;  // <-- this line
     void handleMasterTap();
     juce::TooltipWindow tooltipWindow;  // must live as long as the editor
     juce::Image        logoImage;
@@ -259,6 +270,7 @@ private:
     static constexpr int kNumSlots = SlotMachineAudioProcessor::kNumSlots;
     static constexpr int kMaxBeatsPerSlot = 64;
     std::array<std::unique_ptr<SlotUI>, kNumSlots> slots;
+    std::array<juce::String, kNumSlots> embeddedSlotResourceNames{};
 
     PatternTabs patternTabs;
     juce::Label patternWarningLabel;
@@ -266,6 +278,7 @@ private:
     // ===== Helpers =====
     void buttonClicked(juce::Button*) override;
     void openUserManual();
+    void openEmbeddedSampleSelectorForSlot(int slotIndex, const juce::MouseEvent& e);
     void timerCallback() override;
     void updateStandaloneWindowTitle();
 
@@ -299,12 +312,12 @@ private:
     {
         const float clampedRate = juce::jlimit(0.0625f, 4.0f, rateValue);
         const int scaled = juce::jmax(1, juce::roundToInt(clampedRate * (float)SlotMachineAudioProcessor::kCountModeBaseBeats));
-        return juce::jlimit(1, kMaxBeatsPerSlot, scaled);
+        return juce::jlimit<int>(1, kMaxBeatsPerSlot, scaled);
     }
 
     static float convertCountToRate(int countValue)
     {
-        const int clampedCount = juce::jlimit(1, kMaxBeatsPerSlot, countValue);
+        const int clampedCount = juce::jlimit<int>(1, kMaxBeatsPerSlot, countValue);
         const float rate = (float)clampedCount / (float)SlotMachineAudioProcessor::kCountModeBaseBeats;
         return juce::jlimit(0.0625f, 4.0f, rate);
     }
@@ -336,10 +349,16 @@ private:
     void refreshSlotTimingModeUI();
     void refreshSlotTimingModeUI(int timingMode);
     void parameterChanged(const juce::String& parameterID, float newValue) override;
+    void buildEmbeddedSampleCatalog();
+    juce::String getEmbeddedSampleDisplay(const juce::String& resourceName) const;
 
     // Refs
     SlotMachineAudioProcessor& processor;
     APVTS& apvts;
+
+    EmbeddedCatalog embeddedCatalog;
+    std::map<juce::String, EmbeddedSample> embeddedSampleLookup;
+    bool embeddedCatalogBuilt = false;
 
     float slotScale = 1.0f;
     int   lastTimingMode = 0;
