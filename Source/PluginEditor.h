@@ -218,11 +218,13 @@ private:
             FileButton();
 
             std::function<void(const juce::File&)> onFileDropped;
+            std::function<void(const juce::MouseEvent&)> onRightClick;
 
             bool isInterestedInFileDrag(const juce::StringArray& files) override;
             void fileDragEnter(const juce::StringArray& files, int, int) override;
             void fileDragExit(const juce::StringArray& files) override;
             void filesDropped(const juce::StringArray& files, int, int) override;
+            void mouseUp(const juce::MouseEvent& e) override;
 
         private:
             void paintButton(juce::Graphics& g, bool isMouseOverButton, bool isButtonDown) override;
