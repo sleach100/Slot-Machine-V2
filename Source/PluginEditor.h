@@ -188,6 +188,7 @@ private:
     float lastPhase = 0.0f;      // previous cycle phase (0..1)
     float cycleFlash = 0.0f;     // 0..1 envelope that decays after wrap
     bool lastShowVisualizer = false;
+    bool skipNextFileBtnClick = false;
 
     std::unique_ptr<juce::DocumentWindow> vizWindow;
     std::unique_ptr<PolyrhythmVizComponent> vizComponent;
