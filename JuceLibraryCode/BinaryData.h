@@ -47,11 +47,11 @@ namespace BinaryData
     extern const char*   Open_HatFunkXelf_wav;
     const int            Open_HatFunkXelf_wavSize = 606564;
 
-    extern const char*   Open_hatGilberto_Gil__Morena_wav;
-    const int            Open_hatGilberto_Gil__Morena_wavSize = 112292;
+    extern const char*   Open_HatGilberto_Gil__Morena_wav;
+    const int            Open_HatGilberto_Gil__Morena_wavSize = 112292;
 
-    extern const char*   Open_hatMinako_Yoshida__Clouds_wav;
-    const int            Open_hatMinako_Yoshida__Clouds_wavSize = 265868;
+    extern const char*   Open_HatMinako_Yoshida__Clouds_wav;
+    const int            Open_HatMinako_Yoshida__Clouds_wavSize = 265868;
 
     extern const char*   PercussionConga_wav;
     const int            PercussionConga_wavSize = 40034;
