@@ -8,6 +8,19 @@
 #include <algorithm>
 #include <limits>
 
+#if __has_include("BinaryData.h")
+#include "BinaryData.h"
+#else
+namespace BinaryData
+{
+    inline const void* getNamedResource(const char*, int& size)
+    {
+        size = 0;
+        return nullptr;
+    }
+}
+#endif
+
 using APVTS = juce::AudioProcessorValueTreeState;
 
 //==============================================================================
@@ -1941,13 +1954,38 @@ void SlotMachineAudioProcessor::applyPatternTree(const juce::ValueTree& pattern,
 
         if (path.isNotEmpty())
         {
-            const juce::File file(path);
-            if (!loadSampleForSlot(slot, file, allowTailRelease))
+            bool loadedEmbedded = false;
+
+#if __has_include("BinaryData.h")
             {
-                clearSlot(slot, allowTailRelease);
-                setSlotFilePath(slot, path);
-                if (failedSlots)
-                    failedSlots->addIfNotAlreadyThere(slot);
+                int resourceSize = 0;
+                if (const void* data = BinaryData::getNamedResource(path.toRawUTF8(), resourceSize))
+                {
+                    if (resourceSize > 0 && loadSampleForSlotFromMemory(slot, data, resourceSize, path))
+                    {
+                        loadedEmbedded = true;
+                    }
+                    else
+                    {
+                        clearSlot(slot, allowTailRelease);
+                        if (failedSlots)
+                            failedSlots->addIfNotAlreadyThere(slot);
+                        continue;
+                    }
+                }
+            }
+#endif
+
+            if (!loadedEmbedded)
+            {
+                const juce::File file(path);
+                if (!loadSampleForSlot(slot, file, allowTailRelease))
+                {
+                    clearSlot(slot, allowTailRelease);
+                    setSlotFilePath(slot, path);
+                    if (failedSlots)
+                        failedSlots->addIfNotAlreadyThere(slot);
+                }
             }
         }
         else
