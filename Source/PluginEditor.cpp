@@ -2492,15 +2492,27 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
                 juce::PathStrokeType(strokeThickness, juce::PathStrokeType::curved, juce::PathStrokeType::rounded)
                     .createStrokedPath(filledWave, wavePath);
 
-                auto baseWaveColour = pulseColour.withAlpha(juce::jlimit(0.45f, 0.85f, pulseColour.getFloatAlpha() * 0.75f))
-                                                  .interpolatedWith(barBack, 0.15f);
-                juce::ColourGradient baseGradient(baseWaveColour.brighter(0.28f),
-                                                  barArea.getX(), barArea.getY(),
-                                                  baseWaveColour.darker(0.25f),
-                                                  barArea.getX(), barArea.getBottom(),
+                auto vividWaveColour = pulseColour.withAlpha(0.92f)
+                                                    .withMultipliedSaturation(1.35f);
+                auto shadedWaveColour = vividWaveColour.withMultipliedBrightness(0.22f)
+                                                       .withAlpha(0.88f);
+
+                juce::Path waveGlow(filledWave);
+                juce::PathStrokeType glowStroke(strokeThickness * 1.12f,
+                                               juce::PathStrokeType::curved,
+                                               juce::PathStrokeType::rounded);
+                glowStroke.createStrokedPath(waveGlow, wavePath);
+                g.setColour(vividWaveColour.withAlpha(0.22f));
+                g.fillPath(waveGlow);
+
+                juce::ColourGradient baseGradient(vividWaveColour.brighter(0.55f),
+                                                  barArea.getX(), barArea.getY() + 2.0f,
+                                                  shadedWaveColour.darker(0.15f),
+                                                  barArea.getX(), barArea.getBottom() - 2.0f,
                                                   false);
-                baseGradient.addColour(0.42, baseWaveColour.brighter(0.12f));
-                baseGradient.addColour(0.58, baseWaveColour.darker(0.18f));
+                baseGradient.addColour(0.18, vividWaveColour.brighter(0.75f));
+                baseGradient.addColour(0.5, vividWaveColour);
+                baseGradient.addColour(0.82, shadedWaveColour);
                 g.setGradientFill(baseGradient);
                 g.fillPath(filledWave);
 
@@ -2510,8 +2522,8 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
                     const auto progressRect = juce::Rectangle<float>(barArea.getX(), barArea.getY(), barArea.getWidth() * progress, barArea.getHeight());
                     g.reduceClipRegion(progressRect.toNearestInt());
 
-                    const auto leadColour = pulseColour.withAlpha(0.95f);
-                    const auto trailColour = pulseColour.withAlpha(0.55f).interpolatedWith(baseWaveColour, 0.25f);
+                    const auto leadColour = vividWaveColour.withAlpha(0.98f);
+                    const auto trailColour = shadedWaveColour.withAlpha(0.75f);
                     juce::ColourGradient progressGradient(leadColour,
                                                           progressRect.getRight(), barArea.getY(),
                                                           trailColour,
@@ -2523,8 +2535,8 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
                     g.fillPath(filledWave);
                 }
 
-                g.setColour(pulseColour.withAlpha(0.82f));
-                g.strokePath(wavePath, juce::PathStrokeType(1.6f));
+                g.setColour(vividWaveColour.brighter(0.5f).withAlpha(0.9f));
+                g.strokePath(wavePath, juce::PathStrokeType(2.0f));
 
                 juce::Path upperHighlight;
                 juce::Path lowerHighlight;
