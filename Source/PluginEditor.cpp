@@ -787,6 +787,9 @@ private:
             : juce::Button("speaker")
         {
             setTooltip("Preview sample");
+
+            speakerImage = juce::ImageCache::getFromMemory(BinaryData::SpeakerIcon_png,
+                BinaryData::SpeakerIcon_pngSize);
         }
 
         void paintButton(juce::Graphics& g, bool isOver, bool isDown) override
@@ -801,43 +804,20 @@ private:
             g.setColour(background);
             g.fillRoundedRectangle(area.toFloat().reduced(4.0f), 4.0f);
 
-            const float midY = (float)area.getCentreY();
-            const float left = (float)area.getX() + 8.0f;
-            const float height = (float)area.getHeight() - 8.0f;
-            const float baseWidth = height * 0.35f;
-            const float hornWidth = height * 0.45f;
-
-            juce::Path speakerShape;
-            juce::Rectangle<float> base(left, midY - height * 0.5f, baseWidth, height);
-            speakerShape.addRectangle(base);
-
-            speakerShape.startNewSubPath(base.getRight(), midY - height * 0.6f);
-            speakerShape.lineTo(base.getRight() + hornWidth, midY - height * 0.25f);
-            speakerShape.lineTo(base.getRight() + hornWidth, midY + height * 0.25f);
-            speakerShape.lineTo(base.getRight(), midY + height * 0.6f);
-            speakerShape.closeSubPath();
-
-            juce::Colour iconColour = juce::Colours::whitesmoke;
-            if (isDown)
-                iconColour = iconColour.brighter(0.2f);
-            else if (isOver)
-                iconColour = iconColour.brighter(0.1f);
-
-            g.setColour(iconColour);
-            g.fillPath(speakerShape);
-
-            const float arcCentreX = base.getRight() + hornWidth + height * 0.05f;
-            for (int i = 0; i < 2; ++i)
+            if (speakerImage.isValid())
             {
-                const float radius = height * (0.45f + 0.25f * (float)i);
-                juce::Path wave;
-                wave.addCentredArc(arcCentreX, midY, radius, radius, 0.0f,
-                    -juce::MathConstants<float>::halfPi * 0.9f,
-                    juce::MathConstants<float>::halfPi * 0.9f, true);
-                const float thickness = 1.4f + 0.6f * (float)i;
-                g.strokePath(wave, juce::PathStrokeType(thickness));
+                const auto imageBounds = area.reduced(6);
+                const auto placement = juce::RectanglePlacement::centred;
+                const float opacity = isDown ? 1.0f : (isOver ? 0.95f : 0.85f);
+                g.setOpacity(opacity);
+                g.drawImageWithin(speakerImage, imageBounds.getX(), imageBounds.getY(),
+                    imageBounds.getWidth(), imageBounds.getHeight(), placement, false);
+                g.setOpacity(1.0f);
             }
         }
+
+    private:
+        juce::Image speakerImage;
     };
 
     class ListContent : public juce::Component
