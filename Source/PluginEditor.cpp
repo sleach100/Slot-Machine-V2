@@ -2438,37 +2438,111 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
     const juce::Colour pulseColour = Opt::rgbParam(apvts, "optPulseColor", 0xD3CFE4, pulseAlpha);
 
     const auto barBack = juce::Colours::white.withAlpha(0.18f);
-    const auto barFill = pulseColour.withAlpha(0.92f);
 
     // Master progress bar
     if (showMasterBar)
     {
-        g.setColour(barBack);
-        g.fillRoundedRectangle(masterBarBounds.toFloat(), 3.0f);
-
-        const float w = masterBarBounds.getWidth() * juce::jlimit(0.0f, 1.0f, masterPhase);
-        if (w > 1.0f)
+        const auto barArea = masterBarBounds.toFloat();
+        if (!barArea.isEmpty())
         {
-            auto filled = juce::Rectangle<float>((float)masterBarBounds.getX(),
-                (float)masterBarBounds.getY(),
-                w,
-                (float)masterBarBounds.getHeight());
-            g.setColour(barFill);
-            g.fillRoundedRectangle(filled, 3.0f);
+            g.setColour(barBack);
+            g.fillRoundedRectangle(barArea, 3.0f);
+
+            const float progress = juce::jlimit(0.0f, 1.0f, masterPhase);
+            const float centreY = barArea.getCentreY();
+            const float availableAmplitude = juce::jmax(0.0f, barArea.getHeight() * 0.5f - 1.0f);
+
+            if (barArea.getWidth() > 4.0f && availableAmplitude > 0.0f)
+            {
+                const int sampleCount = juce::jlimit(48, 256, (int)std::round(barArea.getWidth()));
+                masterWaveCache.resize((size_t)sampleCount + 1);
+
+                const float beatPulse = 0.55f + 0.45f * (0.5f * (1.0f + std::sin(masterPhase * juce::MathConstants<float>::twoPi + masterWaveDrift)));
+                const float amplitude = availableAmplitude * juce::jlimit(0.35f, 1.0f, beatPulse);
+
+                for (int i = 0; i <= sampleCount; ++i)
+                {
+                    const float nx = (float)i / (float)sampleCount;
+                    const float envelope = std::pow(std::sin(nx * juce::MathConstants<float>::pi), 0.58f);
+
+                    const float layerA = std::sin((nx + masterPhase) * juce::MathConstants<float>::twoPi + masterWaveAnim);
+                    const float layerB = std::sin((nx * 3.2f + masterWaveDrift * 1.3f) * juce::MathConstants<float>::twoPi);
+                    const float layerC = std::sin((nx * 9.1f - masterWaveAnim * 1.7f) * juce::MathConstants<float>::twoPi);
+
+                    const float combined = (layerA * 0.62f) + (layerB * 0.28f) + (layerC * 0.10f);
+                    masterWaveCache[(size_t)i] = combined * envelope;
+                }
+
+                juce::Path wavePath;
+                wavePath.preallocateSpace((size_t)sampleCount * 6);
+                wavePath.startNewSubPath(barArea.getX(), centreY - masterWaveCache[0] * amplitude);
+
+                for (int i = 1; i <= sampleCount; ++i)
+                {
+                    const float nx = (float)i / (float)sampleCount;
+                    const float x = barArea.getX() + nx * barArea.getWidth();
+                    wavePath.lineTo(x, centreY - masterWaveCache[(size_t)i] * amplitude);
+                }
+
+                for (int i = sampleCount; i >= 0; --i)
+                {
+                    const float nx = (float)i / (float)sampleCount;
+                    const float x = barArea.getX() + nx * barArea.getWidth();
+                    wavePath.lineTo(x, centreY + masterWaveCache[(size_t)i] * amplitude);
+                }
+
+                wavePath.closeSubPath();
+
+                auto baseWaveColour = barBack.withAlpha(juce::jlimit(0.18f, 0.6f, barBack.getFloatAlpha() + 0.22f));
+                juce::ColourGradient baseGradient(baseWaveColour.brighter(0.25f),
+                                                  barArea.getX(), centreY,
+                                                  baseWaveColour.darker(0.15f),
+                                                  barArea.getRight(), centreY,
+                                                  false);
+                baseGradient.addColour(0.5, baseWaveColour);
+                g.setGradientFill(baseGradient);
+                g.fillPath(wavePath);
+
+                if (progress > 0.0f)
+                {
+                    juce::Graphics::ScopedSaveState clip(g);
+                    const auto progressRect = juce::Rectangle<float>(barArea.getX(), barArea.getY(), barArea.getWidth() * progress, barArea.getHeight());
+                    g.reduceClipRegion(progressRect.toNearestInt());
+
+                    juce::ColourGradient progressGradient(pulseColour.withAlpha(0.95f),
+                                                          progressRect.getRight(), centreY,
+                                                          pulseColour.withAlpha(0.35f),
+                                                          progressRect.getX(), centreY,
+                                                          false);
+                    progressGradient.addColour(0.2, pulseColour.withAlpha(0.8f));
+                    progressGradient.addColour(0.75, pulseColour.withAlpha(0.55f));
+                    g.setGradientFill(progressGradient);
+                    g.fillPath(wavePath);
+                }
+
+                g.setColour(pulseColour.withAlpha(0.42f));
+                g.strokePath(wavePath, juce::PathStrokeType(1.1f));
+
+                if (progress > 0.0f && progress < 1.0f)
+                {
+                    const float playheadX = barArea.getX() + barArea.getWidth() * progress;
+                    g.drawLine(playheadX, barArea.getY() + 1.0f, playheadX, barArea.getBottom() - 1.0f, 1.3f);
+                }
+            }
+
+            g.setColour(barBack.withAlpha(0.65f));
+            g.drawRoundedRectangle(barArea, 3.0f, 1.0f);
         }
 
         // Flash overlay on cycle wrap, using the selected pulse colour/alpha
         if (cycleFlash > 0.001f)
         {
-            // use the same 'pulseColour' and its alpha you already read from Options
             const float flashA = juce::jlimit(0.0f, 1.0f, cycleFlash);
             auto flashCol = pulseColour.withAlpha(pulseColour.getFloatAlpha() * flashA);
 
-            // subtle full-bar glow
             g.setColour(flashCol);
             g.fillRoundedRectangle(masterBarBounds.toFloat(), 3.0f);
 
-            // crisp highlight line at bar start (downbeat tick)
             g.setColour(juce::Colours::white.withAlpha(0.25f * flashA));
             auto tick = masterBarBounds.toFloat().removeFromLeft(3.0f);
             g.fillRoundedRectangle(tick, 2.0f);
@@ -4473,6 +4547,9 @@ void SlotMachineAudioProcessorEditor::resetLoopTransport()
 void SlotMachineAudioProcessorEditor::resetProgressVisuals()
 {
     masterPhase = 0.0f;
+    masterWaveAnim = 0.0f;
+    masterWaveDrift = 0.0f;
+    masterWaveCache.clear();
     lastPhase = 0.0f;
     cycleFlash = 0.0f;
     startButtonAnimPhase = 0.0f;
@@ -4563,6 +4640,26 @@ void SlotMachineAudioProcessorEditor::timerCallback()
 
     // Decay flash envelope @ ~60 Hz
     cycleFlash = juce::jmax(0.0f, cycleFlash * 0.88f - 0.01f);
+
+    float deltaPhase = wrapped ? (1.0f - lastPhase) + p : (p - lastPhase);
+    if (deltaPhase < 0.0f)
+        deltaPhase = 0.0f;
+
+    const float baseAdvance = juce::jlimit(0.0075f, 0.35f, deltaPhase * 8.5f + (isRunning ? 0.02f : 0.006f));
+    const float driftAdvance = juce::jlimit(0.005f, 0.25f, deltaPhase * 5.0f + (isRunning ? 0.015f : 0.004f));
+
+    auto wrapPhase = [](float value, float limit)
+    {
+        while (value >= limit)
+            value -= limit;
+        while (value < 0.0f)
+            value += limit;
+        return value;
+    };
+
+    constexpr float kTwoPi = juce::MathConstants<float>::twoPi;
+    masterWaveAnim = wrapPhase(masterWaveAnim + baseAdvance, kTwoPi);
+    masterWaveDrift = wrapPhase(masterWaveDrift + driftAdvance, kTwoPi);
 
     lastPhase = p;
     masterPhase = p; // used by paint() for the master bar

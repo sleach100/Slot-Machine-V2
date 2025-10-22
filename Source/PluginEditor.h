@@ -182,6 +182,9 @@ private:
     juce::Rectangle<int> masterBarBounds;
     juce::Rectangle<int> logoBounds;
     float masterPhase = 0.0f;
+    float masterWaveAnim = 0.0f;
+    float masterWaveDrift = 0.0f;
+    std::vector<float> masterWaveCache;
 
     std::deque<double> masterTapTimes;
 
