@@ -4283,6 +4283,7 @@ void SlotMachineAudioProcessorEditor::updateSliderKnobColours(juce::Colour pulse
         if (!slot)
             continue;
 
+        slot->count.setColour(juce::Slider::thumbColourId, pulseColour);
         slot->rate.setColour(juce::Slider::thumbColourId, pulseColour);
         slot->gain.setColour(juce::Slider::thumbColourId, pulseColour);
         slot->decay.setColour(juce::Slider::thumbColourId, pulseColour);
