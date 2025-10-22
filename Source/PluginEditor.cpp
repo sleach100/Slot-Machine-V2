@@ -2715,15 +2715,16 @@ void SlotMachineAudioProcessorEditor::resized()
         labelBounds.translate(0, kMasterLabelExtraYOffset);
         masterLabel.setBounds(labelBounds);
 
-        const int barH = 8;
         const int barLeft = buttonArea.getX();
         const int tutorialLeft = buttonArea.getX() + 7 * bw;
         const int barRight = tutorialLeft - 20; // keep a 20px gap before the Tutorial button
         const int barWidth = juce::jmax(0, barRight - barLeft);
+        const int barTop = secondRowY;
+        const int barHeight = juce::jmax(0, buttonBottom - barTop);
         masterBarBounds = juce::Rectangle<int>(barLeft,
-                                               buttonBottom - barH - 10,
+                                               barTop,
                                                barWidth,
-                                               barH);
+                                               barHeight);
 
         auto firstRowBounds = [&](int index)
         {
