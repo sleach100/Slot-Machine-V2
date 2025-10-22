@@ -80,6 +80,9 @@ namespace BinaryData
     extern const char*   VOXYell_wav;
     const int            VOXYell_wavSize = 217692;
 
+    extern const char*   SpeakerIcon_png;
+    const int            SpeakerIcon_pngSize = 2701;
+
     extern const char*   LonePearLogic_png;
     const int            LonePearLogic_pngSize = 331159;
 
@@ -105,7 +108,7 @@ namespace BinaryData
     const int            SoloON_pngSize = 9950;
 
     // Number of elements in the namedResourceList and originalFileNames arrays.
-    const int namedResourceListSize = 32;
+    const int namedResourceListSize = 33;
 
     // Points to the start of a list of resource names.
     extern const char* namedResourceList[];

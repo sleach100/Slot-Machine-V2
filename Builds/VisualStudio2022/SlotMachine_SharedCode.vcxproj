@@ -4175,6 +4175,7 @@
     <None Include="..\..\..\..\..\..\..\Beater\everythangg drumz-20250829T031956Z-1-001\everythangg drumz\App\VOX-Grunt.wav"/>
     <None Include="..\..\..\..\..\..\..\Beater\everythangg drumz-20250829T031956Z-1-001\everythangg drumz\App\VOX-Scream.wav"/>
     <None Include="..\..\..\..\..\..\..\Beater\everythangg drumz-20250829T031956Z-1-001\everythangg drumz\App\VOX-Yell.wav"/>
+    <None Include="..\..\Resources\Images\SpeakerIcon.png"/>
     <None Include="..\..\Resources\Images\LonePearLogic.png"/>
     <None Include="..\..\Resources\Images\MuteOFF.png"/>
     <None Include="..\..\Resources\Images\MuteON.png"/>

@@ -50,6 +50,7 @@
       <FILE id="gLrKlK" name="VOX-Yell.wav" compile="0" resource="1" file="../../../../../Beater/everythangg drumz-20250829T031956Z-1-001/everythangg drumz/App/VOX-Yell.wav"/>
     </GROUP>
     <GROUP id="{61926566-C5DF-8EE6-5986-B7E788C417A8}" name="Source">
+      <FILE id="zLKFgk" name="SpeakerIcon.png" compile="0" resource="1" file="Resources/Images/SpeakerIcon.png"/>
       <FILE id="zN1pzk" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="jDW9fT" name="PluginProcessor.h" compile="0" resource="0"

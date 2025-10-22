@@ -7556,6 +7556,9 @@
     <None Include="..\..\..\..\..\..\..\Beater\everythangg drumz-20250829T031956Z-1-001\everythangg drumz\App\VOX-Yell.wav">
       <Filter>SlotMachine\Sound Samples</Filter>
     </None>
+    <None Include="..\..\Resources\Images\SpeakerIcon.png">
+      <Filter>SlotMachine\Source</Filter>
+    </None>
     <None Include="..\..\Resources\Images\LonePearLogic.png">
       <Filter>SlotMachine</Filter>
     </None>
