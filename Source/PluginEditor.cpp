@@ -1046,6 +1046,18 @@ void SlotMachineAudioProcessorEditor::SlotUI::FileButton::filesDropped(const juc
     }
 }
 
+void SlotMachineAudioProcessorEditor::SlotUI::FileButton::mouseUp(const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu())
+    {
+        if (onRightClick)
+            onRightClick(e);
+        return;
+    }
+
+    juce::TextButton::mouseUp(e);
+}
+
 void SlotMachineAudioProcessorEditor::SlotUI::FileButton::paintButton(juce::Graphics& g, bool isMouseOverButton, bool isButtonDown)
 {
     juce::TextButton::paintButton(g, isMouseOverButton || dragActive, isButtonDown);
@@ -2116,6 +2128,12 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
         {
             handleSlotFileSelection(slotIndex, file);
         };
+        ui->fileBtn.onRightClick = [this, slotIndex](const juce::MouseEvent& e)
+        {
+            suppressNextFileBtnClick = true;
+            openEmbeddedSampleSelectorForSlot(slotIndex, e);
+            e.source.enableUnboundedMouseMovement(false);
+        };
 
         addAndMakeVisible(ui->midiChannel);
         addAndMakeVisible(ui->muteBtn);
@@ -2267,6 +2285,7 @@ void SlotMachineAudioProcessorEditor::parentHierarchyChanged()
 
 void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 {
+    suppressNextFileBtnClick = false;
     juce::AudioProcessorEditor::mouseDown(e);
 
     auto* eventComponent = e.eventComponent;
@@ -3637,49 +3656,34 @@ void SlotMachineAudioProcessorEditor::buttonClicked(juce::Button* b)
         return;
     }
 
-    // Per-slot file load / clear / solo
+    // Slot events (file load / clear / solo exclusivity)
     for (int i = 0; i < kNumSlots; ++i)
     {
         auto* ui = slots[(size_t)i].get();
         if (!ui) continue;
 
-        // CLEAR sample
         if (b == &ui->clearBtn)
         {
-            processor.clearSlot(i, startToggle.getToggleState()); // remove sample + path in processor
+            processor.clearSlot(i, startToggle.getToggleState());
             embeddedSlotResourceNames[(size_t)i].clear();
-            ui->hasFile = false;                              // reflect in UI
+            ui->hasFile = false;
             ui->fileLabel.setText("No file", juce::dontSendNotification);
-            ui->glow = 0.0f;                                  // optional: calm the halo
-            ui->phase = 0.0f;                                 // optional: reset bar
-            ui->lastHitCounter = 0;                           // optional: reset hit pulse
+            ui->glow = 0.0f;
+            ui->phase = 0.0f;
+            ui->lastHitCounter = 0;
             repaint();
             return;
         }
 
-        // existing: LOAD sample
-        if (b == &ui->fileBtn)
-        {
-            // ... your existing FileChooser code remains unchanged ...
-        }
-
-        // existing: mutually exclusive Solo
-        if (b == &ui->soloBtn)
-        {
-            // ... your existing solo exclusivity code ...
-        }
-    }
-
-
-    // Slot events (file load + solo exclusivity)
-    for (int i = 0; i < kNumSlots; ++i)
-    {
-        auto* ui = slots[(size_t)i].get();
-        if (!ui) continue;
-
         // Per-slot file load
         if (b == &ui->fileBtn)
         {
+            if (suppressNextFileBtnClick)
+            {
+                suppressNextFileBtnClick = false;
+                return;
+            }
+
             auto chooser = std::make_shared<juce::FileChooser>(
                 "Select audio file", juce::File(), "*.wav;*.aiff;*.aif;*.flac");
 
@@ -4778,26 +4782,6 @@ namespace
 
 void SlotMachineAudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
 {
-    if (e.mods.isPopupMenu())
-    {
-        if (auto* eventComponent = e.eventComponent)
-        {
-            for (int i = 0; i < kNumSlots; ++i)
-            {
-                if (auto* ui = slots[(size_t)i].get())
-                {
-                    if (eventComponent == &ui->fileBtn || ui->fileBtn.isParentOf(eventComponent))
-                    {
-                        openEmbeddedSampleSelectorForSlot(i, e);
-                        e.source.enableUnboundedMouseMovement(false);
-                        juce::ignoreUnused(e);
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
     juce::AudioProcessorEditor::mouseUp(e);
 
     const juce::Point<int> screenPos(e.getScreenX(), e.getScreenY());
