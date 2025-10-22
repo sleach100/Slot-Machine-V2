@@ -2267,6 +2267,7 @@ void SlotMachineAudioProcessorEditor::parentHierarchyChanged()
 
 void SlotMachineAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 {
+    suppressNextFileBtnClick = false;
     juce::AudioProcessorEditor::mouseDown(e);
 
     auto* eventComponent = e.eventComponent;
@@ -3680,6 +3681,12 @@ void SlotMachineAudioProcessorEditor::buttonClicked(juce::Button* b)
         // Per-slot file load
         if (b == &ui->fileBtn)
         {
+            if (suppressNextFileBtnClick)
+            {
+                suppressNextFileBtnClick = false;
+                return;
+            }
+
             auto chooser = std::make_shared<juce::FileChooser>(
                 "Select audio file", juce::File(), "*.wav;*.aiff;*.aif;*.flac");
 
@@ -4788,6 +4795,7 @@ void SlotMachineAudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
                 {
                     if (eventComponent == &ui->fileBtn || ui->fileBtn.isParentOf(eventComponent))
                     {
+                        suppressNextFileBtnClick = true;
                         openEmbeddedSampleSelectorForSlot(i, e);
                         e.source.enableUnboundedMouseMovement(false);
                         juce::ignoreUnused(e);
