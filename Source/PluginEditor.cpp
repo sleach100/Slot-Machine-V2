@@ -3065,7 +3065,20 @@ void SlotMachineAudioProcessorEditor::refreshSlotFileLabels(const juce::Array<in
             embeddedSlotResourceNames[(size_t)i].clear();
 
         juce::String label = "No file";
-        const juce::String embeddedResource = embeddedSlotResourceNames[(size_t)i];
+        juce::String embeddedResource = embeddedSlotResourceNames[(size_t)i];
+
+        if (embeddedResource.isEmpty() && path.isNotEmpty())
+        {
+            int resourceSize = 0;
+            if (const void* data = BinaryData::getNamedResource(path.toRawUTF8(), resourceSize))
+            {
+                if (resourceSize > 0)
+                {
+                    embeddedResource = path;
+                    embeddedSlotResourceNames[(size_t)i] = embeddedResource;
+                }
+            }
+        }
 
         if (embeddedResource.isNotEmpty())
         {
