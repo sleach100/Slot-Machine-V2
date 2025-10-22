@@ -2492,13 +2492,15 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
                 juce::PathStrokeType(strokeThickness, juce::PathStrokeType::curved, juce::PathStrokeType::rounded)
                     .createStrokedPath(filledWave, wavePath);
 
-                auto baseWaveColour = pulseColour.withAlpha(0.18f).interpolatedWith(barBack, 0.35f);
-                juce::ColourGradient baseGradient(baseWaveColour.brighter(0.42f),
+                auto baseWaveColour = pulseColour.withAlpha(juce::jlimit(0.45f, 0.85f, pulseColour.getFloatAlpha() * 0.75f))
+                                                  .interpolatedWith(barBack, 0.15f);
+                juce::ColourGradient baseGradient(baseWaveColour.brighter(0.28f),
                                                   barArea.getX(), barArea.getY(),
-                                                  baseWaveColour.darker(0.35f),
+                                                  baseWaveColour.darker(0.25f),
                                                   barArea.getX(), barArea.getBottom(),
                                                   false);
-                baseGradient.addColour(0.5, baseWaveColour);
+                baseGradient.addColour(0.42, baseWaveColour.brighter(0.12f));
+                baseGradient.addColour(0.58, baseWaveColour.darker(0.18f));
                 g.setGradientFill(baseGradient);
                 g.fillPath(filledWave);
 
@@ -2508,19 +2510,21 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
                     const auto progressRect = juce::Rectangle<float>(barArea.getX(), barArea.getY(), barArea.getWidth() * progress, barArea.getHeight());
                     g.reduceClipRegion(progressRect.toNearestInt());
 
-                    juce::ColourGradient progressGradient(pulseColour.withAlpha(0.95f),
+                    const auto leadColour = pulseColour.withAlpha(0.95f);
+                    const auto trailColour = pulseColour.withAlpha(0.55f).interpolatedWith(baseWaveColour, 0.25f);
+                    juce::ColourGradient progressGradient(leadColour,
                                                           progressRect.getRight(), barArea.getY(),
-                                                          pulseColour.withAlpha(0.35f),
+                                                          trailColour,
                                                           progressRect.getX(), barArea.getBottom(),
                                                           false);
-                    progressGradient.addColour(0.15, pulseColour.withAlpha(0.82f));
-                    progressGradient.addColour(0.6, pulseColour.withAlpha(0.58f));
+                    progressGradient.addColour(0.12, pulseColour.withAlpha(0.88f));
+                    progressGradient.addColour(0.62, pulseColour.withAlpha(0.62f));
                     g.setGradientFill(progressGradient);
                     g.fillPath(filledWave);
                 }
 
-                g.setColour(pulseColour.withAlpha(0.6f));
-                g.strokePath(wavePath, juce::PathStrokeType(1.3f));
+                g.setColour(pulseColour.withAlpha(0.82f));
+                g.strokePath(wavePath, juce::PathStrokeType(1.6f));
 
                 juce::Path upperHighlight;
                 juce::Path lowerHighlight;
@@ -2536,9 +2540,9 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
                     lowerHighlight.lineTo(x, centreY + sample);
                 }
 
-                g.setColour(juce::Colours::white.withAlpha(0.18f));
+                g.setColour(juce::Colours::white.withAlpha(0.3f));
                 g.strokePath(upperHighlight, juce::PathStrokeType(0.8f));
-                g.setColour(juce::Colours::black.withAlpha(0.22f));
+                g.setColour(juce::Colours::black.withAlpha(0.3f));
                 g.strokePath(lowerHighlight, juce::PathStrokeType(1.0f));
 
                 if (progress > 0.0f && progress < 1.0f)
