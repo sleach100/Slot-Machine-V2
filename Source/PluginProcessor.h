@@ -208,6 +208,7 @@ private:
         //--------------------------
 
         void loadFile(const juce::File& f);
+        void loadFromMemory(const void* data, int sizeBytes, const juce::String& pseudoName);
         void trigger();
         void mixInto(juce::AudioBuffer<float>& io, int numSamples, float gain);
 
