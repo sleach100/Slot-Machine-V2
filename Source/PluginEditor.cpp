@@ -1961,6 +1961,9 @@ namespace MidiExport
 SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudioProcessor& p, APVTS& state)
     : juce::AudioProcessorEditor(&p), processor(p), apvts(state), tooltipWindow(this, 600)   // <— add this here
 {
+    setLookAndFeel(&appLF);
+    appLF.setCornerRadius(6.0f);
+
     setWantsKeyboardFocus(true);
 
     logoImage = juce::ImageCache::getFromMemory(BinaryData::SM5_png, BinaryData::SM5_pngSize);
@@ -2261,6 +2264,7 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
 
 SlotMachineAudioProcessorEditor::~SlotMachineAudioProcessorEditor()
 {
+    setLookAndFeel(nullptr);
     closeVisualizerWindow();
     apvts.removeParameterListener("optTimingMode", this);
 }
@@ -2451,7 +2455,9 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
     // Master progress bar
     if (showMasterBar)
     {
-        const float masterButtonCornerRadius = btnTutorial.getLookAndFeel().getTextButtonCornerSize(btnTutorial);
+        float masterButtonCornerRadius = 6.0f;
+        if (auto* lf = dynamic_cast<AppLookAndFeel*>(&getLookAndFeel()))
+            masterButtonCornerRadius = lf->getCornerRadius();
 
         g.setColour(barBack);
         g.fillRoundedRectangle(masterBarBounds.toFloat(), masterButtonCornerRadius);
@@ -2697,6 +2703,12 @@ void SlotMachineAudioProcessorEditor::resized()
         btnTutorial.setBounds(secondRowBounds(7));
         btnUserManual.setBounds(secondRowBounds(8));
         btnAbout.setBounds(secondRowBounds(9));
+
+        const int refH = btnTutorial.getHeight();
+        if (refH > 0)
+            appLF.setCornerRadius(juce::jlimit(2.0f, 12.0f, 0.25f * (float) refH));
+        else
+            appLF.setCornerRadius(6.0f);
     }
 
     const int tabsLift = 73;

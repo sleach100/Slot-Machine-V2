@@ -10,6 +10,7 @@
 #include <map>
 #include "PluginProcessor.h"
 #include "WaveformUtils.h"
+#include "AppLookAndFeel.h"
 
 class PolyrhythmVizComponent;
 
@@ -39,6 +40,8 @@ public:
 
 
 private:
+    AppLookAndFeel appLF;
+
     struct EmbeddedSample
     {
         juce::String category;
