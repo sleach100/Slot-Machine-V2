@@ -3,9 +3,18 @@
 #if defined(__has_include)
 #if __has_include(<JuceHeader.h>)
 #include <JuceHeader.h>
-#else
+#elif __has_include("JuceHeader.h")
+#include "JuceHeader.h"
+#elif __has_include("../JuceLibraryCode/JuceHeader.h")
+#include "../JuceLibraryCode/JuceHeader.h"
+#elif __has_include(<juce_audio_basics/juce_audio_basics.h>)
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_core/juce_core.h>
+#elif __has_include("../JuceLibraryCode/modules/juce_audio_basics/juce_audio_basics.h")
+#include "../JuceLibraryCode/modules/juce_audio_basics/juce_audio_basics.h"
+#include "../JuceLibraryCode/modules/juce_core/juce_core.h"
+#else
+#error "Unable to locate JUCE headers for WaveformUtils"
 #endif
 #else
 #include <JuceHeader.h>
