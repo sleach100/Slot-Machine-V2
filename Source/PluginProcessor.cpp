@@ -1806,10 +1806,8 @@ juce::ValueTree SlotMachineAudioProcessor::createDefaultPatternTree(const juce::
 
     if (auto* timingParam = dynamic_cast<juce::AudioParameterInt*>(apvts.getParameter("optTimingMode")))
     {
-        const auto* ranged = static_cast<juce::RangedAudioParameter*>(timingParam);
-        const float defaultNormalised = ranged->getDefaultValue();
-        const int defaultValue = (int)std::round(timingParam->convertFrom0to1(defaultNormalised));
-        pattern.setProperty(kPatternTimingModeProperty, defaultValue, nullptr);
+        const int currentValue = timingParam->get();
+        pattern.setProperty(kPatternTimingModeProperty, currentValue, nullptr);
     }
 
     for (int slot = 0; slot < kNumSlots; ++slot)
