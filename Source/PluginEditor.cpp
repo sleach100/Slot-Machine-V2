@@ -9,6 +9,7 @@
 #include <array>
 #include <limits>
 #include <functional>
+#include <cstring>
 
 #if __has_include("BinaryData.h")
 #include "BinaryData.h"
@@ -2212,6 +2213,13 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
 
     initialisePatterns();
 
+    scopeTemp.setSize(1, SlotMachineAudioProcessor::kScopeBlockSize * SlotMachineAudioProcessor::kScopeBlocks);
+    scopeTemp.clear();
+    lastSampleRate = processor.getSampleRate();
+    lastBpmForSizing = processor.getBpm();
+    lastBeatsPerBar = processor.getBeatsPerBar();
+    refreshSamplesPerBar();
+
     startTimerHz(60);
     lastPhase = (float)processor.getMasterPhase();
 
@@ -2446,15 +2454,26 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
         g.setColour(barBack);
         g.fillRoundedRectangle(masterBarBounds.toFloat(), 3.0f);
 
-        const float w = masterBarBounds.getWidth() * juce::jlimit(0.0f, 1.0f, masterPhase);
+        paintMasterWaveform(g, masterBarBounds);
+
+        const float clampedPhase = juce::jlimit(0.0f, 1.0f, masterPhase);
+        const float w = masterBarBounds.getWidth() * clampedPhase;
         if (w > 1.0f)
         {
             auto filled = juce::Rectangle<float>((float)masterBarBounds.getX(),
                 (float)masterBarBounds.getY(),
                 w,
                 (float)masterBarBounds.getHeight());
-            g.setColour(barFill);
+            g.setColour(barFill.withAlpha(0.7f));
             g.fillRoundedRectangle(filled, 3.0f);
+        }
+
+        if (masterBarBounds.getWidth() > 0)
+        {
+            const float widthMinusOne = (float) juce::jmax(1, masterBarBounds.getWidth() - 1);
+            const float playheadX = (float) masterBarBounds.getX() + clampedPhase * widthMinusOne;
+            g.setColour(juce::Colours::white.withAlpha(0.85f));
+            g.drawLine(playheadX, (float) masterBarBounds.getY(), playheadX, (float) masterBarBounds.getBottom(), 2.0f);
         }
 
         // Flash overlay on cycle wrap, using the selected pulse colour/alpha
@@ -2650,6 +2669,9 @@ void SlotMachineAudioProcessorEditor::resized()
                                                buttonBottom - barH - 10,
                                                barWidth,
                                                barH);
+        const int binWidth = juce::jmax(1, masterBarBounds.getWidth());
+        minCols.resize((size_t) binWidth);
+        maxCols.resize((size_t) binWidth);
 
         auto firstRowBounds = [&](int index)
         {
@@ -4476,6 +4498,10 @@ void SlotMachineAudioProcessorEditor::resetProgressVisuals()
     lastPhase = 0.0f;
     cycleFlash = 0.0f;
     startButtonAnimPhase = 0.0f;
+    barWritePos = 0;
+    barFilledOnce = false;
+    if (samplesPerBar > 0 && barVisual.getNumSamples() >= samplesPerBar)
+        barVisual.clear();
 
     for (auto& slot : slots)
     {
@@ -4497,6 +4523,155 @@ void SlotMachineAudioProcessorEditor::resetProgressVisuals()
 }
 
 
+void SlotMachineAudioProcessorEditor::refreshSamplesPerBar()
+{
+    const double sr  = processor.getSampleRate();
+    const double bpm = processor.getBpm();
+    const int    beatsPerBar = processor.getBeatsPerBar();
+
+    lastSampleRate = sr;
+    lastBpmForSizing = bpm;
+    lastBeatsPerBar = beatsPerBar;
+
+    if (sr <= 0.0 || bpm <= 0.0 || beatsPerBar <= 0)
+    {
+        samplesPerBar = 0;
+        barVisual.setSize(0, 0);
+        barScratch.clear();
+        barWritePos = 0;
+        barFilledOnce = false;
+        return;
+    }
+
+    const double secondsPerBeat = 60.0 / bpm;
+    const int newSamplesPerBar = juce::jmax(1, (int) std::round(sr * secondsPerBeat * (double) beatsPerBar));
+
+    if (newSamplesPerBar != samplesPerBar)
+    {
+        samplesPerBar = newSamplesPerBar;
+        barVisual.setSize(1, samplesPerBar);
+        barVisual.clear();
+        barScratch.resize((size_t) samplesPerBar);
+        barWritePos = 0;
+        barFilledOnce = false;
+    }
+    else if ((int) barScratch.size() != samplesPerBar)
+    {
+        barScratch.resize((size_t) samplesPerBar);
+    }
+}
+
+void SlotMachineAudioProcessorEditor::consumeScopeBlocks()
+{
+    if (samplesPerBar <= 0)
+        return;
+
+    const int capacity = SlotMachineAudioProcessor::kScopeBlockSize * SlotMachineAudioProcessor::kScopeBlocks;
+    if (scopeTemp.getNumSamples() < capacity)
+        scopeTemp.setSize(1, capacity);
+
+    scopeTemp.clear(0, 0, scopeTemp.getNumSamples());
+
+    auto& queue = processor.getScopeQueue();
+    const int blocksCopied = queue.popTo(scopeTemp, 0);
+    if (blocksCopied <= 0)
+        return;
+
+    const int samplesCopied = blocksCopied * SlotMachineAudioProcessor::kScopeBlockSize;
+    const float* src = scopeTemp.getReadPointer(0);
+
+    int remaining = samplesCopied;
+    int offset = 0;
+
+    while (remaining > 0)
+    {
+        int space = samplesPerBar - barWritePos;
+        if (space <= 0)
+        {
+            barWritePos = 0;
+            barFilledOnce = true;
+            space = samplesPerBar;
+        }
+
+        const int toCopy = juce::jmin(remaining, space);
+        if (toCopy <= 0)
+            break;
+
+        barVisual.copyFrom(0, barWritePos, src + offset, toCopy);
+        barWritePos += toCopy;
+        offset += toCopy;
+        remaining -= toCopy;
+
+        if (barWritePos >= samplesPerBar)
+        {
+            barWritePos = 0;
+            barFilledOnce = true;
+        }
+    }
+}
+
+void SlotMachineAudioProcessorEditor::paintMasterWaveform(juce::Graphics& g, juce::Rectangle<int> bounds)
+{
+    if (samplesPerBar <= 0 || bounds.isEmpty())
+        return;
+
+    const int width = bounds.getWidth();
+    if (width <= 0)
+        return;
+
+    if ((int) minCols.size() != width)
+        minCols.resize((size_t) width);
+    if ((int) maxCols.size() != width)
+        maxCols.resize((size_t) width);
+
+    const int availableSamples = barFilledOnce ? samplesPerBar : barWritePos;
+    if (availableSamples <= 0)
+        return;
+
+    const int scratchNeeded = barFilledOnce ? samplesPerBar : availableSamples;
+    if ((int) barScratch.size() < scratchNeeded)
+        barScratch.resize((size_t) juce::jmax(1, scratchNeeded));
+
+    const float* src = barVisual.getReadPointer(0);
+
+    if (barFilledOnce)
+    {
+        const int tail = samplesPerBar - barWritePos;
+        if (tail > 0)
+            std::memcpy(barScratch.data(), src + barWritePos, (size_t) tail * sizeof(float));
+        if (barWritePos > 0)
+            std::memcpy(barScratch.data() + tail, src, (size_t) barWritePos * sizeof(float));
+    }
+    else if (availableSamples > 0)
+    {
+        std::memcpy(barScratch.data(), src, (size_t) availableSamples * sizeof(float));
+    }
+
+    const int samplesToBin = barFilledOnce ? samplesPerBar : availableSamples;
+    MinMaxBinner::compute(barScratch.data(), samplesToBin, minCols.data(), maxCols.data(), width);
+
+    juce::Graphics::ScopedSaveState state(g);
+    g.setOpacity(0.9f);
+
+    g.setColour(juce::Colours::white.withAlpha(0.12f));
+    auto centreLine = bounds.withHeight(1).withCentre(bounds.getCentre());
+    g.fillRect(centreLine);
+
+    g.setColour(juce::Colours::white.withAlpha(0.35f));
+    for (int x = 0; x < width; ++x)
+    {
+        const float mn = juce::jlimit(-1.0f, 1.0f, minCols[(size_t) x]);
+        const float mx = juce::jlimit(-1.0f, 1.0f, maxCols[(size_t) x]);
+
+        const float yMax = juce::jmap(mx, -1.0f, 1.0f, (float) bounds.getBottom(), (float) bounds.getY());
+        const float yMin = juce::jmap(mn, -1.0f, 1.0f, (float) bounds.getBottom(), (float) bounds.getY());
+
+        const int xPos = bounds.getX() + x;
+        g.drawVerticalLine(xPos, yMax, yMin);
+    }
+}
+
+
 void SlotMachineAudioProcessorEditor::timerCallback()
 {
     const float currentScaleParam = Opt::getFloat(apvts, "optSlotScale", slotScale);
@@ -4514,6 +4689,16 @@ void SlotMachineAudioProcessorEditor::timerCallback()
             openVisualizerWindow();
         else
             closeVisualizerWindow();
+    }
+
+    const double sampleRateNow = processor.getSampleRate();
+    const double bpmNow = processor.getBpm();
+    const int beatsNow = processor.getBeatsPerBar();
+    if (std::abs(sampleRateNow - lastSampleRate) > 0.5
+        || std::abs(bpmNow - lastBpmForSizing) > 1.0e-6
+        || beatsNow != lastBeatsPerBar)
+    {
+        refreshSamplesPerBar();
     }
 
     const bool isRunning = startToggle.getToggleState();
@@ -4622,6 +4807,8 @@ void SlotMachineAudioProcessorEditor::timerCallback()
         ui->count.setAlpha(countEnabled ? 1.0f : 0.35f);
         ui->rate.setAlpha(rateEnabled ? 1.0f : 0.35f);
     }
+
+    consumeScopeBlocks();
 
     repaint();
 }

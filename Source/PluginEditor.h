@@ -9,6 +9,7 @@
 #include <utility>
 #include <map>
 #include "PluginProcessor.h"
+#include "WaveformUtils.h"
 
 class PolyrhythmVizComponent;
 
@@ -192,6 +193,18 @@ private:
     std::unique_ptr<juce::DocumentWindow> vizWindow;
     std::unique_ptr<PolyrhythmVizComponent> vizComponent;
 
+    // --- Master waveform ---
+    juce::AudioBuffer<float> barVisual;
+    juce::AudioBuffer<float> scopeTemp;
+    std::vector<float> barScratch;
+    std::vector<float> minCols, maxCols;
+    int barWritePos = 0;
+    bool barFilledOnce = false;
+    double lastBpmForSizing = 0.0;
+    int lastBeatsPerBar = 0;
+    double lastSampleRate = 0.0;
+    int samplesPerBar = 0;
+
     // ===== Slot UI =====
     struct SlotUI
     {
@@ -282,6 +295,9 @@ private:
     void openUserManual();
     void openEmbeddedSampleSelectorForSlot(int slotIndex, const juce::MouseEvent& e);
     void timerCallback() override;
+    void refreshSamplesPerBar();
+    void consumeScopeBlocks();
+    void paintMasterWaveform(juce::Graphics& g, juce::Rectangle<int> bounds);
     void updateStandaloneWindowTitle();
 
     void setMasterRun(bool shouldRun);

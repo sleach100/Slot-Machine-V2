@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <limits>
 
+#include "WaveformUtils.h"
+
 class SlotMachineAudioProcessor : public juce::AudioProcessor
 {
 public:
@@ -18,6 +20,8 @@ public:
     // ====== Constants ======
     static constexpr int kNumSlots = 16;
     static constexpr int kCountModeBaseBeats = 4;
+    static constexpr int kScopeBlockSize = 256;
+    static constexpr int kScopeBlocks    = 64;
 
     // ====== Construction ======
     SlotMachineAudioProcessor();
@@ -125,6 +129,10 @@ public:
     void setCurrentPatternIndex(int index);
     int  getCurrentPatternIndex() const;
 
+    auto& getScopeQueue() noexcept { return scopeQueue; }
+    double getBpm() const noexcept { return bpmAtomic.load(std::memory_order_relaxed); }
+    int    getBeatsPerBar() const noexcept { return numeratorAtomic.load(std::memory_order_relaxed); }
+
 private:
     std::array<std::atomic<int>, kNumSlots> pendingManualTriggers;
     std::array<std::atomic<uint64_t>, kNumSlots> countBeatMasks{};
@@ -230,6 +238,10 @@ private:
     PreviewVoice previewVoice;
     juce::SpinLock previewLock;
     double currentSampleRate = 44100.0;
+    juce::AudioBuffer<float> scratchMono;
+    AudioBlockQueue<kScopeBlockSize, kScopeBlocks> scopeQueue;
+    std::atomic<double> bpmAtomic { 120.0 };
+    std::atomic<int>    numeratorAtomic { kCountModeBaseBeats };
     //-------------------
     double masterBeatsAccum = 0.0; // total beats elapsed while running (not modulo)
 

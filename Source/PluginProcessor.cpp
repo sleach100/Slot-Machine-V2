@@ -604,6 +604,10 @@ void SlotMachineAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
         previewVoice.reset();
     }
 
+    scopeQueue.reset();
+    scratchMono.setSize(1, juce::jmax(1, samplesPerBlock));
+    scratchMono.clear();
+
     resetAllPhases(true);
 }
 
@@ -629,6 +633,9 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     // Always emit both audio and MIDI
     const bool wantAudio = true;
     const bool wantMidi = true;
+
+    bpmAtomic.store((double) masterBPM, std::memory_order_relaxed);
+    numeratorAtomic.store(kCountModeBaseBeats, std::memory_order_relaxed);
 
     // Solo mask
     bool anySolo = false;
@@ -902,6 +909,38 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         juce::SpinLock::ScopedTryLockType guard(previewLock);
         if (guard.isLocked())
             previewVoice.mixInto(buffer, numSamples);
+    }
+
+    if (wantAudio && numSamples > 0)
+    {
+        if (scratchMono.getNumSamples() < numSamples)
+            scratchMono.setSize(1, numSamples, false, false, true);
+
+        scratchMono.clear(0, 0, numSamples);
+
+        auto* mono = scratchMono.getWritePointer(0);
+        const float* left  = buffer.getReadPointer(0);
+        const float* right = buffer.getNumChannels() > 1 ? buffer.getReadPointer(1) : nullptr;
+
+        if (right != nullptr)
+        {
+            for (int i = 0; i < numSamples; ++i)
+                mono[i] = 0.5f * (left[i] + right[i]);
+        }
+        else if (left != nullptr)
+        {
+            juce::FloatVectorOperations::copy(mono, left, numSamples);
+        }
+
+        int remaining = numSamples;
+        int offset = 0;
+        while (remaining > 0)
+        {
+            const int chunk = juce::jmin(remaining, kScopeBlockSize);
+            scopeQueue.push(mono + offset, chunk);
+            offset += chunk;
+            remaining -= chunk;
+        }
     }
 }
 
