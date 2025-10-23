@@ -2451,8 +2451,10 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
     // Master progress bar
     if (showMasterBar)
     {
+        const float masterButtonCornerRadius = btnTutorial.getLookAndFeel().getTextButtonCornerSize(btnTutorial);
+
         g.setColour(barBack);
-        g.fillRoundedRectangle(masterBarBounds.toFloat(), 3.0f);
+        g.fillRoundedRectangle(masterBarBounds.toFloat(), masterButtonCornerRadius);
 
         paintMasterWaveform(g, masterBarBounds);
 
@@ -2465,7 +2467,7 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
                 w,
                 (float)masterBarBounds.getHeight());
             g.setColour(barFill.withAlpha(0.7f));
-            g.fillRoundedRectangle(filled, 3.0f);
+            g.fillRoundedRectangle(filled, masterButtonCornerRadius);
         }
 
         if (masterBarBounds.getWidth() > 0)
@@ -2485,12 +2487,12 @@ void SlotMachineAudioProcessorEditor::paint(juce::Graphics& g)
 
             // subtle full-bar glow
             g.setColour(flashCol);
-            g.fillRoundedRectangle(masterBarBounds.toFloat(), 3.0f);
+            g.fillRoundedRectangle(masterBarBounds.toFloat(), masterButtonCornerRadius);
 
             // crisp highlight line at bar start (downbeat tick)
             g.setColour(juce::Colours::white.withAlpha(0.25f * flashA));
             auto tick = masterBarBounds.toFloat().removeFromLeft(3.0f);
-            g.fillRoundedRectangle(tick, 2.0f);
+            g.fillRoundedRectangle(tick, juce::jmin(masterButtonCornerRadius, 2.0f));
         }
     }
 
@@ -2662,7 +2664,7 @@ void SlotMachineAudioProcessorEditor::resized()
 
         const int barLeft = buttonArea.getX();
         const int tutorialLeft = buttonArea.getX() + 7 * bw;
-        const int barRight = tutorialLeft - 20; // keep a 20px gap before the Tutorial button
+        const int barRight = tutorialLeft;
         const int barWidth = juce::jmax(0, barRight - barLeft);
         masterBarBounds = juce::Rectangle<int>(barLeft,
                                                secondRowY,
