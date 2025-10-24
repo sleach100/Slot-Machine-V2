@@ -326,6 +326,36 @@ void SlotMachineAudioProcessor::SlotVoice::loadFile(const juce::File& f)
 
 }
 
+void SlotMachineAudioProcessor::SlotVoice::loadFromMemory(const void* data, int sizeBytes, const juce::String& pseudoName)
+{
+    active = false;
+    sample.setSize(0, 0);
+    filePath = pseudoName;
+
+    if (data == nullptr || sizeBytes <= 0)
+        return;
+
+    juce::AudioFormatManager fm;
+    fm.registerBasicFormats();
+
+    auto reader = makeReaderFromMemory(fm, data, sizeBytes);
+    if (reader == nullptr)
+        return;
+
+    juce::AudioBuffer<float> decoded;
+    if (decodeReaderToStereoBuffer(*reader, sampleRate, decoded))
+    {
+        sample = std::move(decoded);
+        active = (sample.getNumSamples() > 0);
+
+        playIndex = -1;
+        playLength = 0;
+        env = 0.0f;
+        envSamplesElapsed = 0;
+        envMaxSamples = 0;
+    }
+}
+
 void SlotMachineAudioProcessor::SlotVoice::trigger()
 {
     if (!hasSample())
@@ -1470,19 +1500,44 @@ bool SlotMachineAudioProcessor::exportAudioCycles(const juce::File& destination,
         if (path.isEmpty())
             continue;
 
-        juce::File audioFile(path);
-        if (!audioFile.existsAsFile())
-        {
-            missingFiles.add(audioFile.getFullPathName());
-            continue;
-        }
-
         SlotVoice voice;
         voice.prepare(engineSampleRate);
-        voice.loadFile(audioFile);
-        if (!voice.hasSample())
+
+        bool loaded = false;
+        juce::String missingIdentifier = path;
+
+#if __has_include("BinaryData.h")
         {
-            missingFiles.add(audioFile.getFullPathName());
+            int resourceSize = 0;
+            if (const void* data = BinaryData::getNamedResource(path.toRawUTF8(), resourceSize))
+            {
+                if (resourceSize > 0)
+                {
+                    voice.loadFromMemory(data, resourceSize, path);
+                    loaded = voice.hasSample();
+                }
+            }
+        }
+#endif
+
+        if (!loaded)
+        {
+            const juce::File audioFile(path);
+
+            if (!audioFile.existsAsFile())
+            {
+                missingFiles.add(missingIdentifier);
+                continue;
+            }
+
+            voice.loadFile(audioFile);
+            loaded = voice.hasSample();
+            missingIdentifier = audioFile.getFullPathName();
+        }
+
+        if (!loaded)
+        {
+            missingFiles.add(missingIdentifier);
             continue;
         }
 

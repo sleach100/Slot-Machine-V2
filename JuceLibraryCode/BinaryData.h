@@ -8,77 +8,131 @@
 
 namespace BinaryData
 {
-    extern const char*   _808Kick_wav;
-    const int            _808Kick_wavSize = 146710;
+    extern const char*   CYMBALBell_wav;
+    const int            CYMBALBell_wavSize = 55378;
 
-    extern const char*   _808Robotic_wav;
-    const int            _808Robotic_wavSize = 472678;
+    extern const char*   CYMBALCrash_2_wav;
+    const int            CYMBALCrash_2_wavSize = 72330;
 
-    extern const char*   _808Vynlz_wav;
-    const int            _808Vynlz_wavSize = 581862;
+    extern const char*   CYMBALCrash_wav;
+    const int            CYMBALCrash_wavSize = 399718;
 
-    extern const char*   ClapAqua_Clap_wav;
-    const int            ClapAqua_Clap_wavSize = 496926;
+    extern const char*   CYMBALRide_2_wav;
+    const int            CYMBALRide_2_wavSize = 105078;
 
-    extern const char*   ClapDecontaminated_Clap_wav;
-    const int            ClapDecontaminated_Clap_wavSize = 421838;
+    extern const char*   CYMBALRide_3_wav;
+    const int            CYMBALRide_3_wavSize = 72302;
 
-    extern const char*   ClapMotto_Clap_wav;
-    const int            ClapMotto_Clap_wavSize = 133030;
+    extern const char*   CYMBALRide_wav;
+    const int            CYMBALRide_wavSize = 264720;
 
-    extern const char*   Closed_HatHi_Hat_Stove_wav;
-    const int            Closed_HatHi_Hat_Stove_wavSize = 12402;
+    extern const char*   CYMBALTap_wav;
+    const int            CYMBALTap_wavSize = 416160;
 
-    extern const char*   Closed_HatAdventure_Hat_WAV;
-    const int            Closed_HatAdventure_Hat_WAVSize = 26106;
+    extern const char*   HATClosed_2_wav;
+    const int            HATClosed_2_wavSize = 10478;
 
-    extern const char*   Closed_HatHat_wav;
-    const int            Closed_HatHat_wavSize = 87734;
+    extern const char*   HATClosed_wav;
+    const int            HATClosed_wavSize = 16162;
 
-    extern const char*   Crashes__CymbalsCrash_1_wav;
-    const int            Crashes__CymbalsCrash_1_wavSize = 518222;
+    extern const char*   HATOpen_2_wav;
+    const int            HATOpen_2_wavSize = 120930;
 
-    extern const char*   Crashes__CymbalsCrash_2_wav;
-    const int            Crashes__CymbalsCrash_2_wavSize = 280922;
+    extern const char*   HATOpen_wav;
+    const int            HATOpen_wavSize = 73664;
 
-    extern const char*   Crashes__CymbalsCymbal_wav;
-    const int            Crashes__CymbalsCymbal_wavSize = 794456;
+    extern const char*   HATPedal_wav;
+    const int            HATPedal_wavSize = 12858;
 
-    extern const char*   Open_HatFunkXelf_wav;
-    const int            Open_HatFunkXelf_wavSize = 606564;
+    extern const char*   HATTap_wav;
+    const int            HATTap_wavSize = 63408;
 
-    extern const char*   Open_HatGilberto_Gil__Morena_wav;
-    const int            Open_HatGilberto_Gil__Morena_wavSize = 112292;
+    extern const char*   KICKKick_1_wav;
+    const int            KICKKick_1_wavSize = 38506;
 
-    extern const char*   Open_HatMinako_Yoshida__Clouds_wav;
-    const int            Open_HatMinako_Yoshida__Clouds_wavSize = 265868;
+    extern const char*   KICKKick_2_wav;
+    const int            KICKKick_2_wavSize = 16290;
 
-    extern const char*   PercussionConga_wav;
-    const int            PercussionConga_wavSize = 40034;
+    extern const char*   KICKKick_3_wav;
+    const int            KICKKick_3_wavSize = 30256;
 
-    extern const char*   PercussionDrum_Beat_WAV;
-    const int            PercussionDrum_Beat_WAVSize = 125590;
+    extern const char*   KICKKick_4_wav;
+    const int            KICKKick_4_wavSize = 25090;
 
-    extern const char*   PercussionMac_x_Pharrell_Bongo_wav;
-    const int            PercussionMac_x_Pharrell_Bongo_wavSize = 1057408;
+    extern const char*   KICKKick_5_wav;
+    const int            KICKKick_5_wavSize = 20074;
 
-    extern const char*   SnareAlchemist_Snare_wav;
-    const int            SnareAlchemist_Snare_wavSize = 27226;
+    extern const char*   KICKKick_6_wav;
+    const int            KICKKick_6_wavSize = 50226;
 
-    extern const char*   SnareDiplomatic_wav;
-    const int            SnareDiplomatic_wavSize = 19116;
+    extern const char*   RIMSHOTRimshot_1_wav;
+    const int            RIMSHOTRimshot_1_wavSize = 49482;
 
-    extern const char*   SnareSnare_Box_wav;
-    const int            SnareSnare_Box_wavSize = 29216;
+    extern const char*   RIMSHOTRimshot_2_wav;
+    const int            RIMSHOTRimshot_2_wavSize = 53850;
 
-    extern const char*   VOXGrunt_wav;
-    const int            VOXGrunt_wavSize = 168350;
+    extern const char*   RIMSHOTRimshot_3_wav;
+    const int            RIMSHOTRimshot_3_wavSize = 15444;
 
-    extern const char*   VOXScream_wav;
-    const int            VOXScream_wavSize = 162860;
+    extern const char*   RIMSHOTRimshot_4_wav;
+    const int            RIMSHOTRimshot_4_wavSize = 19118;
 
-    extern const char*   VOXYell_wav;
-    const int            VOXYell_wavSize = 217692;
+    extern const char*   RIMSHOTRimshot_5_wav;
+    const int            RIMSHOTRimshot_5_wavSize = 1462;
+
+    extern const char*   SNARESnare_1_wav;
+    const int            SNARESnare_1_wavSize = 17008;
+
+    extern const char*   SNARESnare_2_wav;
+    const int            SNARESnare_2_wavSize = 110402;
+
+    extern const char*   SNARESnare_3_wav;
+    const int            SNARESnare_3_wavSize = 15496;
+
+    extern const char*   SNARESnare_4_wav;
+    const int            SNARESnare_4_wavSize = 30258;
+
+    extern const char*   SNARESnare_5_wav;
+    const int            SNARESnare_5_wavSize = 12422;
+
+    extern const char*   TOMFloor_2_wav;
+    const int            TOMFloor_2_wavSize = 46290;
+
+    extern const char*   TOMFloor_wav;
+    const int            TOMFloor_wavSize = 125554;
+
+    extern const char*   TOMHigh_2_wav;
+    const int            TOMHigh_2_wavSize = 68836;
+
+    extern const char*   TOMHigh_3_wav;
+    const int            TOMHigh_3_wavSize = 60362;
+
+    extern const char*   TOMHigh_4_wav;
+    const int            TOMHigh_4_wavSize = 79218;
+
+    extern const char*   TOMHigh_wav;
+    const int            TOMHigh_wavSize = 88424;
+
+    extern const char*   TOMLow_2_wav;
+    const int            TOMLow_2_wavSize = 157250;
+
+    extern const char*   TOMLow_3_wav;
+    const int            TOMLow_3_wavSize = 60362;
+
+    extern const char*   TOMLow_4_wav;
+    const int            TOMLow_4_wavSize = 78294;
+
+    extern const char*   TOMLow_wav;
+    const int            TOMLow_wavSize = 85294;
+
+    extern const char*   TOMMid_2_wav;
+    const int            TOMMid_2_wavSize = 87674;
+
+    extern const char*   TOMMid_3_wav;
+    const int            TOMMid_3_wavSize = 60362;
+
+    extern const char*   TOMMid_wav;
+    const int            TOMMid_wavSize = 88422;
 
     extern const char*   SpeakerIcon_png;
     const int            SpeakerIcon_pngSize = 2701;
@@ -108,7 +162,7 @@ namespace BinaryData
     const int            SoloON_pngSize = 9950;
 
     // Number of elements in the namedResourceList and originalFileNames arrays.
-    const int namedResourceListSize = 33;
+    const int namedResourceListSize = 51;
 
     // Points to the start of a list of resource names.
     extern const char* namedResourceList[];
