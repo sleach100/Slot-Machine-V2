@@ -168,6 +168,7 @@ private:
         float tailPanL = 0.7071f;
         float tailPanR = 0.7071f;
         bool  tailActive = false;
+        bool  wasAudibleLastBlock = false;
 
         // persistence
         juce::String filePath;
@@ -211,6 +212,7 @@ private:
         void loadFromMemory(const void* data, int sizeBytes, const juce::String& pseudoName);
         void trigger();
         void mixInto(juce::AudioBuffer<float>& io, int numSamples, float gain);
+        void stopImmediate() noexcept;
 
         bool hasSample() const { return active && sample.getNumSamples() > 0; }
         void setFilePath(const juce::String& s) { filePath = s; }

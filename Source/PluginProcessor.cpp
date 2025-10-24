@@ -456,6 +456,25 @@ void SlotMachineAudioProcessor::SlotVoice::mixInto(juce::AudioBuffer<float>& io,
         panL, panR, numSamples, gain);
 }
 
+void SlotMachineAudioProcessor::SlotVoice::stopImmediate() noexcept
+{
+    playIndex = -1;
+    playLength = 0;
+    env = 0.0f;
+    envSamplesElapsed = 0;
+
+    tailSample.setSize(0, 0);
+    tailIndex = -1;
+    tailLength = 0;
+    tailEnv = 0.0f;
+    tailEnvAlpha = 1.0f;
+    tailEnvSamplesElapsed = 0;
+    tailEnvMaxSamples = 0;
+    tailPanL = panL;
+    tailPanR = panR;
+    tailActive = false;
+}
+
 void SlotMachineAudioProcessor::SlotVoice::clear(bool allowTail) noexcept
 {
     if (allowTail && playIndex >= 0 && playLength > playIndex && sample.getNumSamples() > 0)
@@ -745,6 +764,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 
         const bool mute = apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Mute")->load();
         const bool solo = soloMask[i];
+        const bool slotAudible = !mute && (!anySolo || solo);
 
         const float rate = *apvts.getRawParameterValue("slot" + juce::String(i + 1) + "_Rate");
         int count = 4;
@@ -791,7 +811,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         const int manualHits = pendingManualTriggers[(size_t)i].exchange(0, std::memory_order_relaxed);
         if (manualHits > 0)
         {
-            if (s.hasSample() && !mute && (!anySolo || solo))
+            if (s.hasSample() && slotAudible)
             {
                 s.trigger();
 
@@ -808,20 +828,30 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
             }
         }
 
+        if (slotAudible && !s.wasAudibleLastBlock)
+            s.stopImmediate();
+
         // Render any currently ringing sample (works even when transport is stopped)
-        if (wantAudio && !mute && (!anySolo || solo))
-            s.mixInto(buffer, numSamples, gain);
+        if (wantAudio)
+        {
+            const float mixGain = slotAudible ? gain : 0.0f;
+            s.mixInto(buffer, numSamples, mixGain);
+        }
 
         // No processing if no sample or transport stopped (but visuals still update)
         if (!s.hasSample() || !run || spb <= 0.0)
         {
+            s.wasAudibleLastBlock = slotAudible;
             continue;
         }
 
         if (timingMode == 0)
         {
             if (rateD <= 0.0)
+            {
+                s.wasAudibleLastBlock = slotAudible;
                 continue;
+            }
 
             // Render any currently ringing sample (only if Audio/Both and not muted/soloed out)
             //if (wantAudio && !mute && (!anySolo || solo))
@@ -855,7 +885,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
                     s.trigger();
 
                     // MIDI: emit note at exact in-block position
-                    if (wantMidi && !mute && (!anySolo || solo))
+                    if (wantMidi && slotAudible)
                     {
                         const int noteNumber = 60; // Middle C for all slots
                         const int velocity = juce::jlimit(1, 127, (int)std::round(gain * 127.0f));
@@ -868,13 +898,14 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
                     }
 
                     // Audio: mix hit tail from the hit point forward (Audio/Both only)
-                    if (wantAudio && !mute && (!anySolo || solo))
+                    if (wantAudio)
                     {
+                        const float mixGain = slotAudible ? gain : 0.0f;
                         juce::AudioBuffer<float> view(buffer.getArrayOfWritePointers(),
                             buffer.getNumChannels(),
                             hitOffset,
                             numSamples - hitOffset);
-                        s.mixInto(view, view.getNumSamples(), gain);
+                        s.mixInto(view, view.getNumSamples(), mixGain);
                     }
                 }
             }
@@ -885,11 +916,17 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
             const double stepBeats = (count > 0 ? countModeCycleBeats / (double)count : 0.0);
             const double denomBeats = currBeats - prevBeats;
             if (stepBeats <= 0.0 || denomBeats <= 0.0)
+            {
+                s.wasAudibleLastBlock = slotAudible;
                 continue;
+            }
 
             const uint64_t activeMask = getSlotCountMask(i) & maskForBeats(count);
             if (activeMask == 0)
+            {
+                s.wasAudibleLastBlock = slotAudible;
                 continue;
+            }
 
             const int firstIndex = (int)std::ceil(prevBeats / stepBeats);
             for (int n = firstIndex;; ++n)
@@ -910,7 +947,7 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 
                 s.trigger();
 
-                if (wantMidi && !mute && (!anySolo || solo))
+                if (wantMidi && slotAudible)
                 {
                     const int noteNumber = 60; // Middle C for all slots
                     const int velocity = juce::jlimit(1, 127, (int)std::round(gain * 127.0f));
@@ -922,16 +959,19 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
                     midi.addEvent(juce::MidiMessage::noteOff(midiChannel, noteNumber), offPos);
                 }
 
-                if (wantAudio && !mute && (!anySolo || solo))
+                if (wantAudio)
                 {
+                    const float mixGain = slotAudible ? gain : 0.0f;
                     juce::AudioBuffer<float> view(buffer.getArrayOfWritePointers(),
                         buffer.getNumChannels(),
                         hitOffset,
                         numSamples - hitOffset);
-                    s.mixInto(view, view.getNumSamples(), gain);
+                    s.mixInto(view, view.getNumSamples(), mixGain);
                 }
             }
         }
+
+        s.wasAudibleLastBlock = slotAudible;
     }
 
     if (wantAudio)
