@@ -809,8 +809,12 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         }
 
         // Render any currently ringing sample (works even when transport is stopped)
-        if (wantAudio && !mute && (!anySolo || solo))
-            s.mixInto(buffer, numSamples, gain);
+        if (wantAudio)
+        {
+            const bool slotAudible = !mute && (!anySolo || solo);
+            const float mixGain = slotAudible ? gain : 0.0f;
+            s.mixInto(buffer, numSamples, mixGain);
+        }
 
         // No processing if no sample or transport stopped (but visuals still update)
         if (!s.hasSample() || !run || spb <= 0.0)
@@ -868,13 +872,15 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
                     }
 
                     // Audio: mix hit tail from the hit point forward (Audio/Both only)
-                    if (wantAudio && !mute && (!anySolo || solo))
+                    if (wantAudio)
                     {
+                        const bool slotAudible = !mute && (!anySolo || solo);
+                        const float mixGain = slotAudible ? gain : 0.0f;
                         juce::AudioBuffer<float> view(buffer.getArrayOfWritePointers(),
                             buffer.getNumChannels(),
                             hitOffset,
                             numSamples - hitOffset);
-                        s.mixInto(view, view.getNumSamples(), gain);
+                        s.mixInto(view, view.getNumSamples(), mixGain);
                     }
                 }
             }
@@ -922,13 +928,15 @@ void SlotMachineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
                     midi.addEvent(juce::MidiMessage::noteOff(midiChannel, noteNumber), offPos);
                 }
 
-                if (wantAudio && !mute && (!anySolo || solo))
+                if (wantAudio)
                 {
+                    const bool slotAudible = !mute && (!anySolo || solo);
+                    const float mixGain = slotAudible ? gain : 0.0f;
                     juce::AudioBuffer<float> view(buffer.getArrayOfWritePointers(),
                         buffer.getNumChannels(),
                         hitOffset,
                         numSamples - hitOffset);
-                    s.mixInto(view, view.getNumSamples(), gain);
+                    s.mixInto(view, view.getNumSamples(), mixGain);
                 }
             }
         }
