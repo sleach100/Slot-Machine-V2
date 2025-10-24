@@ -2134,6 +2134,25 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
 
         ui->muteBtn.setName("MuteButton" + juce::String(idx));
         configureToggleImageButton(ui->muteBtn, muteOffImage, muteOnImage);
+        {
+            auto existingHandler = ui->muteBtn.onStateChange;
+            auto* muteButton = &ui->muteBtn;
+            const int currentSlotIndex = slotIndex;
+
+            ui->muteBtn.onStateChange = [this, existingHandler, muteButton,
+                                         currentSlotIndex,
+                                         previousState = muteButton->getToggleState()]() mutable
+            {
+                if (existingHandler)
+                    existingHandler();
+
+                const bool isMuted = muteButton->getToggleState();
+                if (!isMuted && previousState != isMuted)
+                    processor.requestManualTrigger(currentSlotIndex);
+
+                previousState = isMuted;
+            };
+        }
 
         ui->soloBtn.setName("SoloButton" + juce::String(idx));
         configureToggleImageButton(ui->soloBtn, soloOffImage, soloOnImage);
