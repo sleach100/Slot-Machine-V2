@@ -2024,6 +2024,7 @@ SlotMachineAudioProcessorEditor::SlotMachineAudioProcessorEditor(SlotMachineAudi
     addAndMakeVisible(btnTutorial);     beautify(btnTutorial);     btnTutorial.addListener(this);
     addAndMakeVisible(btnUserManual);   beautify(btnUserManual);   btnUserManual.addListener(this);
     addAndMakeVisible(btnAbout);        beautify(btnAbout);        btnAbout.addListener(this);
+    addAndMakeVisible(btnUnlock);       beautify(btnUnlock);
 
     addAndMakeVisible(patternTabs);
     patternTabs.onTabSelected([this](int index)
@@ -2634,7 +2635,7 @@ void SlotMachineAudioProcessorEditor::resized()
         const int buttonInsetY = 8;
         const int bottomMargin = 6 + kMasterControlsYOffset;
         const int buttonRowGap = 4;
-        const int buttonRowsHeight = buttonInsetY * 2 + buttonHeight * 2 + buttonRowGap;
+        const int buttonRowsHeight = buttonInsetY * 2 + buttonHeight * 3 + buttonRowGap * 2;
         const int masterHeight = juce::jmax(sliderHeight, buttonRowsHeight) + bottomMargin;
 
         auto top = area.removeFromTop(masterHeight);
@@ -2643,12 +2644,13 @@ void SlotMachineAudioProcessorEditor::resized()
         auto sliderArea = top.removeFromLeft(420);
 
         auto buttonArea = top.reduced(10, buttonInsetY);
-        const int numButtons = 10; // Start/Save/Load/Reset Loop/Reset UI/Initialize/Options/Export MIDI/Export Audio/Visualizer (Tutorial, User Manual, and About below)
+        const int numButtons = 10; // Start/Save/Load/Reset Loop/Reset UI/Initialize/Options/Export MIDI/Export Audio/Visualizer (Tutorial, User Manual, About, and Unlock below)
         const int bw = buttonArea.getWidth() / numButtons;
         const int bh = buttonHeight;
         const int firstRowY = buttonArea.getY();
         const int secondRowY = firstRowY + bh + buttonRowGap;
-        const int buttonBottom = secondRowY + bh;
+        const int thirdRowY = secondRowY + bh + buttonRowGap;
+        const int buttonBottom = thirdRowY + bh;
 
         auto labelBounds = labelArea.reduced(8, 0);
 
@@ -2690,6 +2692,11 @@ void SlotMachineAudioProcessorEditor::resized()
             return juce::Rectangle<int>(buttonArea.getX() + index * bw, secondRowY, bw, bh);
         };
 
+        auto thirdRowBounds = [&](int index)
+        {
+            return juce::Rectangle<int>(buttonArea.getX() + index * bw, thirdRowY, bw, bh);
+        };
+
         btnStart.setBounds(firstRowBounds(0));
         btnSave.setBounds(firstRowBounds(1));
         btnLoad.setBounds(firstRowBounds(2));
@@ -2703,6 +2710,7 @@ void SlotMachineAudioProcessorEditor::resized()
         btnTutorial.setBounds(secondRowBounds(7));
         btnUserManual.setBounds(secondRowBounds(8));
         btnAbout.setBounds(secondRowBounds(9));
+        btnUnlock.setBounds(thirdRowBounds(9));
 
         const int refH = btnTutorial.getHeight();
         if (refH > 0)
@@ -2717,7 +2725,12 @@ void SlotMachineAudioProcessorEditor::resized()
     tabsRow.translate(0, -tabsLift);
     auto warningArea = tabsRow.removeFromRight(220).reduced(10, 4);
     patternWarningLabel.setBounds(warningArea);
-    patternTabs.setBounds(tabsRow.reduced(0, 4));
+    auto patternTabsBounds = tabsRow.reduced(0, 4);
+    patternTabs.setBounds(patternTabsBounds);
+
+    auto unlockBounds = btnUnlock.getBounds();
+    unlockBounds.setCentre(patternTabsBounds.getCentreX(), unlockBounds.getCentreY());
+    btnUnlock.setBounds(unlockBounds);
 
     area.translate(0, -tabsLift);
     area.setBottom(bounds.getBottom() - margin);
