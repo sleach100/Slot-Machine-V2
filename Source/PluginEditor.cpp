@@ -2728,9 +2728,15 @@ void SlotMachineAudioProcessorEditor::resized()
     auto patternTabsBounds = tabsRow.reduced(0, 4);
     patternTabs.setBounds(patternTabsBounds);
 
-    auto unlockBounds = btnUnlock.getBounds();
-    unlockBounds.setCentre(patternTabsBounds.getCentreX(), unlockBounds.getCentreY());
-    btnUnlock.setBounds(unlockBounds);
+    auto alignWithTabsCenterLine = [&](juce::Component& component)
+    {
+        auto bounds = component.getBounds();
+        bounds.setCentre(patternTabsBounds.getCentreX(), bounds.getCentreY());
+        component.setBounds(bounds);
+    };
+
+    alignWithTabsCenterLine(btnAbout);
+    alignWithTabsCenterLine(btnUnlock);
 
     area.translate(0, -tabsLift);
     area.setBottom(bounds.getBottom() - margin);
